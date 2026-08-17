@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}Prévisualisation import{% endblock %}
+{% block page_title %}<i class="bi bi-eye me-2"></i>Prévisualisation — {{ total }} gymnaste(s) détecté(s){% endblock %}
+
+{% block content %}
+<!-- Résumé -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="stat-card green">
+      <div class="stat-icon">🤸</div>
+      <div><div class="stat-number">{{ total }}</div><div class="stat-label">Gymnastes lus</div></div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div><div class="stat-number">{{ total - nb_doublons }}</div><div class="stat-label">Nouveaux</div></div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-card navy">
+      <div class="stat-icon">⚠️</div>
+      <div><div class="stat-number">{{ nb_doublons }}</div><div class="stat-label">Doublons</div></div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-card blue">
+      <div class="stat-icon">📧</div>
+      <div><div class="stat-number" style="font-size:12px;margin-top:4px;">dole2028</div><div class="stat-label">MDP par défaut</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Colonnes détectées -->
+<div class="fscf-card mb-4">
+  <div class="fscf-card-header"><i class="bi bi-table me-2"></i>Colonnes détectées dans le fichier</div>
+  <div class="fscf-card-body py-3">
+    <div class="d-flex flex-wrap gap-2">
+      {% for field, col in col_names.items() %}
+      <div style="background:{% if col %}#e8f7ed;border:1px solid #c8e6c9;{% else %}#fff0f0;border:1px solid #ffcdd2;{% endif %};border-radius:8px;padding:6px 12px;font-size:12px;">
+        {% if col %}
+          <i class="bi bi-check-circle-fill me-1" style="color:var(--green);"></i>
+          <strong>{{ field }}</strong> ← <span style="color:#888;">{{ col }}</span>
+        {% else %}
+          <i class="bi bi-x-circle me-1" style="color:#e53935;"></i>
+          <strong>{{ field }}</strong> <span style="color:#ccc;">non trouvé</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Tableau de prévisualisation -->
+<div class="fscf-card mb-4">
+  <div class="fscf-card-header pink">
+    <span><i class="bi bi-list-ul me-2"></i>Aperçu — {{ rows|length }} premières lignes{% if total > rows|length %} sur {{ total }}{% endif %}</span>
+  </div>
+  <div class="fscf-card-body p-0" style="overflow-x:auto;">
+    <table class="fscf-table">
+      <thead>
+        <tr>
+          <th>#</th><th>Nom</th><th>Prénom</th><th>Club / Association</th>
+          <th>Catégorie</th><th>Région</th><th>Email (généré)</th><th>Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr {% if r.doublon %}style="background:#fff8f0;"{% endif %}>
+          <td style="color:#bbb;font-size:11px;">{{ loop.index }}</td>
+          <td><strong>{{ r.nom }}</strong></td>
+          <td>{{ r.prenom }}</td>
+          <td>{{ r.club }}</td>
+          <td><span class="role-badge role-participant">{{ r.categorie }}</span></td>
+          <td style="font-size:11px;color:#888;">{{ r.region or '—' }}</td>
+          <td style="font-size:11px;color:#888;">{{ r.email }}</td>
+          <td>
+            {% if r.doublon %}
+              <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Doublon</span>
+            {% else %}
+              <span class="badge bg-success"><i class="bi bi-plus-circle me-1"></i>Nouveau</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if total > rows|length %}
+    <div class="p-3 text-center text-muted" style="font-size:12px;border-top:1px solid #f0f0f0;">
+      <i class="bi bi-three-dots me-1"></i>{{ total - rows|length }} lignes supplémentaires non affichées — toutes seront importées.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Boutons de confirmation -->
+<div class="fscf-card">
+  <div class="fscf-card-body">
+    <form method="POST" action="{{ url_for('import_confirm') }}">
+      <input type="hidden" name="tmp_file" value="{{ tmp_file }}">
+
+      {% if nb_doublons > 0 %}
+      <div class="alert alert-warning d-flex align-items-center gap-2 mb-3">
+        <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+        <div>
+          <strong>{{ nb_doublons }} doublon(s) détecté(s)</strong> — ces gymnastes ont déjà un compte avec le même email.
+          <div class="mt-1">
+            <label class="form-check-label" style="font-size:13px;">
+              <input type="checkbox" name="skip_doublons" value="1" class="form-check-input me-1" checked>
+              Ignorer les doublons (recommandé)
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="d-flex gap-3 align-items-center">
+        <button type="submit" class="btn-fscf px-5 py-2" style="font-size:15px;">
+          <i class="bi bi-check-lg me-2"></i>Confirmer l'import ({{ total - nb_doublons }} nouveau{{ 's' if total - nb_doublons > 1 }})
+        </button>
+        <a href="{{ url_for('import_adagio') }}" class="btn btn-light px-4">
+          <i class="bi bi-x me-1"></i>Annuler
+        </a>
+        <div class="text-muted ms-auto" style="font-size:12px;">
+          <i class="bi bi-key me-1"></i>Mot de passe attribué : <code>dole2028</code>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

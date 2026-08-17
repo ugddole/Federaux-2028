@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}Administration{% endblock %}
+{% block page_title %}<i class="bi bi-shield-lock-fill me-2"></i>Gestion des utilisateurs{% endblock %}
+
+{% block content %}
+<div class="fscf-card">
+  <div class="fscf-card-body p-0">
+    <table class="fscf-table">
+      <thead><tr>
+        <th>Nom / Prénom</th><th>Email</th><th>Rôle</th><th>Créé le</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+      {% for u in users %}
+      <tr>
+        <td><strong>{{ u.nom }} {{ u.prenom }}</strong></td>
+        <td style="font-size:12px;">{{ u.email }}</td>
+        <td><span class="role-badge role-{{ u.role }}">{{ u.role }}</span></td>
+        <td style="font-size:11px;color:#888;">{{ u.created_at[:10] }}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-secondary me-1" onclick="resetPwd({{ u.id }}, '{{ u.prenom }} {{ u.nom }}')" title="Réinitialiser MDP">
+            <i class="bi bi-key"></i>
+          </button>
+          {% if u.id != current_user.id %}
+          <form method="POST" action="{{ url_for('admin_user_delete', id=u.id) }}" class="d-inline" onsubmit="return confirm('Supprimer {{ u.prenom }} {{ u.nom }} ?')">
+            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal reset password -->
+<div class="modal fade" id="pwdModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">Réinitialiser le mot de passe</h6></div>
+      <form method="POST" id="pwd-form">
+        <div class="modal-body">
+          <label class="form-label">Nouveau mot de passe pour <strong id="pwd-name"></strong></label>
+          <input type="text" name="password" class="form-control" value="dole2028">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn-fscf px-3 py-1">Confirmer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Responsables : création + catégories -->
+<div class="fscf-card mt-4">
+  <div class="fscf-card-header">
+    <span><i class="bi bi-person-badge me-2"></i>Responsables de pôle</span>
+  </div>
+  <div class="fscf-card-body">
+
+    <form method="POST" action="{{ url_for('admin_responsable_new') }}" class="row g-2 align-items-end mb-4">
+      <div class="col-md-3">
+        <label class="form-label fw-bold" style="font-size:12px;">Prénom</label>
+        <input type="text" name="prenom" class="form-control form-control-sm" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-bold" style="font-size:12px;">Nom</label>
+        <input type="text" name="nom" class="form-control form-control-sm" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-bold" style="font-size:12px;">Email</label>
+        <input type="email" name="email" class="form-control form-control-sm" required>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn-fscf btn-sm w-100"><i class="bi bi-plus-lg me-1"></i>Créer</button>
+      </div>
+    </form>
+
+    {% if responsables %}
+    <table class="fscf-table">
+      <thead><tr><th>Responsable</th><th>Catégories assignées</th><th></th></tr></thead>
+      <tbody>
+      {% for u in responsables %}
+      <tr>
+        <td><strong>{{ u.prenom }} {{ u.nom }}</strong><br><small class="text-muted">{{ u.email }}</small></td>
+        <td>
+          <form method="POST" action="{{ url_for('admin_responsable_categories', id=u.id) }}" id="cat-form-{{ u.id }}">
+            <div class="d-flex flex-wrap gap-2">
+              {% for c in all_cats %}
+              <label class="form-check-label d-flex align-items-center gap-1" style="font-size:12px;background:#f0f2f5;border-radius:14px;padding:3px 10px;">
+                <input type="checkbox" name="categories" value="{{ c }}" class="form-check-input m-0"
+                       {% if c in resp_cats.get(u.id, []) %}checked{% endif %}>
+                {{ c }}
+              </label>
+              {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-secondary mt-2"><i class="bi bi-check-lg me-1"></i>Enregistrer</button>
+          </form>
+        </td>
+        <td>
+          <button class="btn btn-sm btn-outline-secondary" onclick="resetPwd({{ u.id }}, '{{ u.prenom }} {{ u.nom }}')" title="Réinitialiser MDP">
+            <i class="bi bi-key"></i>
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted mb-0" style="font-size:13px;">Aucun responsable créé pour le moment.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function resetPwd(id, name) {
+  document.getElementById('pwd-name').textContent = name;
+  document.getElementById('pwd-form').action = `/admin/user/${id}/reset`;
+  new bootstrap.Modal(document.getElementById('pwdModal')).show();
+}
+</script>
+{% endblock %}

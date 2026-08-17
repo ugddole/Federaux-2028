@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+{% block title %}{{ t.titre }}{% endblock %}
+{% block page_title %}<i class="bi bi-check2-square me-2"></i>{{ t.titre }}{% endblock %}
+
+{% set priorite_colors = {'urgente':'danger','haute':'warning','normale':'primary','basse':'secondary',
+                           'Impératif':'danger','Important':'warning','Recommandé':'secondary'} %}
+{% set statut_colors   = {'todo':'secondary','en_cours':'info','termine':'success'} %}
+{% set statut_labels   = {'todo':'À faire','en_cours':'En cours','termine':'Terminé'} %}
+{% set pct = ((done / total * 100)|int) if total > 0 else 0 %}
+
+{% block topbar_actions %}
+{% if editable %}
+<a href="{{ url_for('tache_edit', id=t.id) }}" class="btn btn-sm btn-outline-secondary me-2">
+  <i class="bi bi-pencil me-1"></i>Modifier
+</a>
+<form method="POST" action="{{ url_for('tache_delete', id=t.id) }}" class="d-inline"
+      onsubmit="return confirm('Supprimer cette tâche et toutes ses sous-tâches ?')">
+  <button type="submit" class="btn btn-sm btn-outline-danger">
+    <i class="bi bi-trash me-1"></i>Supprimer
+  </button>
+</form>
+{% else %}
+<span class="badge bg-light text-muted border"><i class="bi bi-lock me-1"></i>Lecture seule</span>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- Panneau latéral : infos tâche -->
+  <div class="col-md-4">
+    <div class="fscf-card">
+      <div class="fscf-card-body">
+        <h6 class="fw-bold mb-3">Détails</h6>
+
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Statut</small>
+          <span class="badge bg-{{ statut_colors[t.statut] }}" style="font-size:.85rem;">
+            {{ statut_labels[t.statut] }}
+          </span>
+        </div>
+
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Priorité</small>
+          <span class="badge bg-{{ priorite_colors.get(t.priorite,'secondary') }}" style="font-size:.85rem;">
+            {{ t.priorite or '—' }}
+          </span>
+        </div>
+
+        {% if t.categorie %}
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Catégorie</small>
+          <strong><i class="bi bi-folder2-open me-1"></i>{{ t.categorie }}</strong>
+        </div>
+        {% endif %}
+
+        {% if t.resp_nom %}
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Responsable</small>
+          <strong><i class="bi bi-person-fill me-1"></i>{{ t.resp_prenom }} {{ t.resp_nom }}</strong>
+        </div>
+        {% endif %}
+
+        {% if t.delai_libelle %}
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Délai</small>
+          <strong><i class="bi bi-hourglass-split me-1"></i>{{ t.delai_libelle }}</strong>
+        </div>
+        {% endif %}
+
+        {% if t.echeance %}
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Échéance</small>
+          <strong><i class="bi bi-calendar3 me-1"></i>{{ t.echeance }}</strong>
+        </div>
+        {% endif %}
+
+        {% if t.description %}
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Description</small>
+          <p class="mb-0" style="white-space:pre-wrap;font-size:.9rem;">{{ t.description }}</p>
+        </div>
+        {% endif %}
+
+        {% if mission %}
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Mission associée</small>
+          <a href="{{ url_for('planning') }}#mc-{{ mission.id }}" class="text-decoration-none">
+            <span class="badge text-white" style="background:{{ mission.couleur }};font-size:.8rem;">
+              <i class="bi bi-calendar3-week me-1"></i>{{ mission.nom }}
+            </span>
+            <small class="text-muted ms-1">{{ mission.jour }}</small>
+          </a>
+        </div>
+        {% endif %}
+
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Créée le</small>
+          <span style="font-size:.85rem;">{{ t.created_at[:16] }}</span>
+        </div>
+
+        {% if total > 0 %}
+        <hr>
+        <div>
+          <div class="d-flex justify-content-between mb-1" style="font-size:.8rem;">
+            <span class="fw-bold">Progression</span>
+            <span>{{ done }}/{{ total }} ({{ pct }}%)</span>
+          </div>
+          <div class="progress" style="height:8px;">
+            <div class="progress-bar bg-success" style="width:{{ pct }}%;transition:width .4s;"></div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <a href="{{ url_for('taches_list') }}" class="btn btn-sm btn-outline-secondary mt-2">
+      <i class="bi bi-arrow-left me-1"></i>Retour à la liste
+    </a>
+  </div>
+
+  <!-- Panneau principal : sous-tâches -->
+  <div class="col-md-8">
+    <div class="fscf-card">
+      <div class="fscf-card-body">
+        <h6 class="fw-bold mb-3">
+          Sous-tâches
+          <span class="badge bg-secondary ms-1">{{ total }}</span>
+          {% if total > 0 %}
+          <span class="badge bg-success ms-1">{{ done }} faites</span>
+          {% endif %}
+        </h6>
+
+        {% if sous_taches %}
+        <ul class="list-unstyled mb-0">
+        {% for st in sous_taches %}
+        <li class="d-flex align-items-center gap-2 py-2 {% if not loop.last %}border-bottom{% endif %}">
+          <!-- Toggle -->
+          <form method="POST" action="{{ url_for('sous_tache_toggle', id=st.id) }}" class="mb-0 flex-shrink-0">
+            <button type="submit" {% if not editable %}disabled{% endif %}
+              class="btn btn-sm p-0 d-flex align-items-center justify-content-center rounded-circle {% if st.statut == 'fait' %}btn-success{% else %}btn-outline-secondary{% endif %}"
+              style="width:28px;height:28px;"
+              title="{{ 'Marquer comme à faire' if st.statut == 'fait' else 'Marquer comme fait' }}">
+              <i class="bi bi-{{ 'check-lg' if st.statut == 'fait' else 'circle' }}" style="font-size:.85rem;"></i>
+            </button>
+          </form>
+
+          <!-- Titre -->
+          <span class="flex-grow-1 {% if st.statut == 'fait' %}text-decoration-line-through text-muted{% endif %}" style="font-size:.9rem;">
+            {{ st.titre }}
+          </span>
+
+          {% if editable %}
+          <!-- Supprimer -->
+          <form method="POST" action="{{ url_for('sous_tache_delete', id=st.id) }}" class="mb-0 flex-shrink-0"
+                onsubmit="return confirm('Supprimer cette sous-tâche ?')">
+            <button type="submit"
+              class="btn btn-sm btn-outline-danger p-0 d-flex align-items-center justify-content-center"
+              style="width:26px;height:26px;">
+              <i class="bi bi-trash" style="font-size:.75rem;"></i>
+            </button>
+          </form>
+          {% endif %}
+        </li>
+        {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-center text-muted py-3 mb-0">
+          <i class="bi bi-inbox d-block" style="font-size:2rem;opacity:.3;"></i>
+          Aucune sous-tâche.{% if editable %} Ajoutez-en une ci-dessous.{% endif %}
+        </p>
+        {% endif %}
+
+        {% if editable %}
+        <hr>
+
+        <!-- Formulaire ajout sous-tâche -->
+        <form method="POST" action="{{ url_for('sous_tache_new', id=t.id) }}" class="d-flex gap-2 mt-2">
+          <input type="text" name="titre" class="form-control form-control-sm"
+                 placeholder="Nouvelle sous-tâche…" required maxlength="200">
+          <button type="submit" class="btn-fscf px-3 py-1 text-nowrap flex-shrink-0">
+            <i class="bi bi-plus-lg me-1"></i>Ajouter
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

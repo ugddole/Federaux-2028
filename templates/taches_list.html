@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}Tâches{% endblock %}
+{% block page_title %}<i class="bi bi-check2-square me-2"></i>Gestion des tâches{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('taches_import') }}" class="btn btn-sm btn-outline-secondary me-2">
+  <i class="bi bi-cloud-arrow-down me-1"></i>Importer
+</a>
+<a href="{{ url_for('tache_new') }}" class="btn-fscf"><i class="bi bi-plus-lg me-1"></i>Nouvelle tâche</a>
+{% endblock %}
+
+{% block content %}
+
+{% set priorite_colors = {'urgente':'danger','haute':'warning','normale':'primary','basse':'secondary',
+                           'Impératif':'danger','Important':'warning','Recommandé':'secondary'} %}
+{% set statut_colors   = {'todo':'secondary','en_cours':'info','termine':'success'} %}
+{% set statut_labels   = {'todo':'À faire','en_cours':'En cours','termine':'Terminé'} %}
+
+{% if not by_cat %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-check2-square" style="font-size:3.5rem;opacity:.25;"></i>
+  <p class="mt-3 mb-4">Aucune tâche pour le moment.</p>
+  <a href="{{ url_for('tache_new') }}" class="btn-fscf">Créer la première tâche</a>
+</div>
+
+{% else %}
+
+{% for cat, items in by_cat.items() %}
+{% set done_count = items | selectattr('t.statut', 'equalto', 'termine') | list | length %}
+<div class="prog-day-header d-flex align-items-center justify-content-between">
+  <span><i class="bi bi-folder2-open me-2"></i>{{ cat }}</span>
+  <span class="badge bg-white text-dark" style="font-size:11px;">{{ done_count }}/{{ items|length }} terminées</span>
+</div>
+<div class="row g-2 mb-3">
+{% for d in items %}
+{% set t = d.t %}
+{% set pct = ((d.done / d.total * 100)|int) if d.total > 0 else 0 %}
+<div class="col-12">
+  <div class="fscf-card" style="border-left:4px solid var(--bs-{{ priorite_colors.get(t.priorite,'secondary') }}-rgb,#888);">
+    <div class="fscf-card-body d-flex align-items-center gap-3 py-3">
+      <div class="flex-grow-1 min-width-0">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+          <span class="badge bg-{{ priorite_colors.get(t.priorite,'secondary') }}">{{ t.priorite or '—' }}</span>
+          <span class="badge bg-{{ statut_colors[t.statut] }}">{{ statut_labels[t.statut] }}</span>
+          {% if t.resp_nom %}
+          <span class="badge bg-light text-dark border"><i class="bi bi-person-fill me-1"></i>{{ t.resp_prenom }} {{ t.resp_nom }}</span>
+          {% endif %}
+          {% if t.mission_nom %}
+          <span class="badge text-white" style="background:{{ t.mission_couleur }};">
+            <i class="bi bi-calendar3-week me-1"></i>{{ t.mission_nom }}
+          </span>
+          {% endif %}
+          {% if t.delai_libelle %}
+          <small class="text-muted"><i class="bi bi-hourglass-split me-1"></i>{{ t.delai_libelle }}</small>
+          {% endif %}
+          {% if t.echeance %}
+          <small class="text-muted"><i class="bi bi-calendar3 me-1"></i>{{ t.echeance }}</small>
+          {% endif %}
+        </div>
+        <div class="fw-semibold">{{ t.titre }}</div>
+        {% if t.description %}
+        <small class="text-muted">{{ t.description[:100] }}{% if t.description|length > 100 %}…{% endif %}</small>
+        {% endif %}
+        <div class="mt-2 d-flex align-items-center gap-3">
+          {% if d.total > 0 %}
+          <small class="text-muted text-nowrap">{{ d.done }}/{{ d.total }} sous-tâches</small>
+          <div class="progress flex-grow-1" style="height:5px;">
+            <div class="progress-bar bg-success" style="width:{{ pct }}%;"></div>
+          </div>
+          <small class="text-muted text-nowrap">{{ pct }}%</small>
+          {% else %}
+          <small class="text-muted">Aucune sous-tâche</small>
+          {% endif %}
+        </div>
+      </div>
+      {% if not d.can_edit %}
+      <span class="text-muted flex-shrink-0" title="Lecture seule"><i class="bi bi-lock"></i></span>
+      {% endif %}
+      <a href="{{ url_for('tache_detail', id=t.id) }}" class="btn btn-sm btn-outline-primary flex-shrink-0" title="Voir le détail">
+        <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</div>
+{% endfor %}
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

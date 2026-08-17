@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}{% if action=='new' %}Nouveau bénévole{% else %}Modifier bénévole{% endif %}{% endblock %}
+{% block page_title %}<i class="bi bi-person-heart me-2"></i>{% if action=='new' %}Nouveau bénévole{% else %}Modifier {{ item.prenom }} {{ item.nom }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-6">
+<div class="fscf-card">
+  <div class="fscf-card-header green"><i class="bi bi-person-heart me-2"></i>{% if action=='new' %}Créer un bénévole{% else %}Modifier{% endif %}</div>
+  <div class="fscf-card-body">
+    <form method="POST">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Prénom *</label>
+          <input type="text" name="prenom" class="form-control" value="{{ item.prenom if item else '' }}" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Nom *</label>
+          <input type="text" name="nom" class="form-control" value="{{ item.nom if item else '' }}" required>
+        </div>
+        {% if action == 'new' %}
+        <div class="col-md-7">
+          <label class="form-label fw-semibold">Email *</label>
+          <input type="email" name="email" class="form-control" required>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-semibold">Mot de passe</label>
+          <input type="text" name="password" class="form-control" value="benevole2028">
+        </div>
+        {% endif %}
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Téléphone</label>
+          <input type="tel" name="tel" class="form-control" value="{{ item.telephone if item else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Taille T-shirt</label>
+          <select name="tshirt" class="form-select">
+            {% for s in ['XS','S','M','L','XL','XXL'] %}
+            <option value="{{ s }}" {% if item and item.tshirt==s %}selected{% elif not item and s=='M' %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Notes / Disponibilités</label>
+          <textarea name="notes" class="form-control" rows="3" placeholder="Ex: disponible samedi matin uniquement…">{{ item.notes if item else '' }}</textarea>
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button type="submit" class="btn-fscf px-4 py-2" style="background:var(--green);">
+            <i class="bi bi-check-lg me-1"></i>{% if action=='new' %}Créer{% else %}Enregistrer{% endif %}
+          </button>
+          <a href="{{ url_for('benevoles_list') }}" class="btn btn-light px-4">Annuler</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+</div>
+</div>
+{% endblock %}

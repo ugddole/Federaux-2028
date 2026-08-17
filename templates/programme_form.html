@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}{% if item %}Modifier créneau{% else %}Nouveau créneau{% endif %}{% endblock %}
+{% block page_title %}<i class="bi bi-plus-circle me-2"></i>{% if item %}Modifier le créneau{% else %}Ajouter un créneau{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-6">
+<div class="fscf-card">
+  <div class="fscf-card-header blue"><i class="bi bi-list-ol me-2"></i>Détail du créneau</div>
+  <div class="fscf-card-body">
+    <form method="POST">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Catégorie / Épreuve *</label>
+          <input type="text" name="cat" class="form-control" value="{{ item.categorie if item else '' }}" required placeholder="Ex: Minimes Féminines">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Site *</label>
+          <select name="site" class="form-select">
+            {% for s in ['Dole Expo','Centre-ville','Stade Robert Bobin'] %}
+            <option {% if item and item.site==s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Jour *</label>
+          <select name="jour" class="form-select">
+            {% for j in ['Vendredi 30 Juin','Samedi 1er Juillet','Dimanche 2 Juillet'] %}
+            <option {% if item and item.jour==j %}selected{% endif %}>{{ j }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Heure début *</label>
+          <input type="time" name="hdebut" class="form-control" value="{{ item.heure_debut if item else '' }}" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Heure fin *</label>
+          <input type="time" name="hfin" class="form-control" value="{{ item.heure_fin if item else '' }}" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Nb gymnastes</label>
+          <input type="number" name="nb" class="form-control" value="{{ item.nb_gymnastes if item else 0 }}" min="0">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Ordre</label>
+          <input type="number" name="ordre" class="form-control" value="{{ item.ordre if item else 0 }}" min="0">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Notes</label>
+          <textarea name="notes" class="form-control" rows="2">{{ item.notes if item else '' }}</textarea>
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button type="submit" class="btn-fscf px-4 py-2" style="background:var(--blue);"><i class="bi bi-check-lg me-1"></i>Enregistrer</button>
+          <a href="{{ url_for('programme') }}" class="btn btn-light px-4">Annuler</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+</div>
+</div>
+{% endblock %}

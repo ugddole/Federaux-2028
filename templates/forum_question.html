@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}{{ q.titre }}{% endblock %}
+{% block page_title %}<i class="bi bi-chat-quote me-2"></i>Question{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('forum_cat', id=q.categorie_id) }}" class="btn-fscf-outline"><i class="bi bi-arrow-left me-1"></i>Retour</a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-9">
+
+  <!-- Question -->
+  <div class="fscf-card mb-3">
+    <div class="fscf-card-header {% if q.is_resolved %}green{% else %}pink{% endif %}">
+      <span>{% if q.is_resolved %}✅ Résolu{% else %}❓ Question ouverte{% endif %} — {{ q.cat_nom }}</span>
+      {% if current_user.is_admin or q.auteur_id == current_user.id %}
+      <form method="POST" action="{{ url_for('forum_resolve', id=q.id) }}" class="ms-auto">
+        <button type="submit" class="btn btn-sm btn-light" style="font-size:11px;">
+          {% if q.is_resolved %}Rouvrir{% else %}Marquer résolu{% endif %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="fscf-card-body">
+      <h5 class="fw-bold" style="color:var(--navy);">{{ q.titre }}</h5>
+      <div class="text-muted mb-3" style="font-size:12px;">
+        Par <strong>{{ q.prenom }} {{ q.nom }}</strong> · {{ q.created_at[:16].replace('T',' ') }}
+      </div>
+      <div style="font-size:14px;line-height:1.7;white-space:pre-wrap;">{{ q.contenu }}</div>
+    </div>
+  </div>
+
+  <!-- Réponses -->
+  {% if reps %}
+  <h6 class="fw-bold text-muted mb-3" style="font-size:12px;text-transform:uppercase;letter-spacing:1px;">
+    {{ reps|length }} Réponse{{ 's' if reps|length > 1 }}
+  </h6>
+  {% for r in reps %}
+  <div class="reply-box {% if r.is_best %}best{% elif r.role == 'admin' %}admin{% endif %} mb-3">
+    <div class="d-flex justify-content-between align-items-start mb-2">
+      <div>
+        <span class="fw-bold" style="font-size:13px;">{{ r.prenom }} {{ r.nom }}</span>
+        <span class="role-badge role-{{ r.role }} ms-2">{{ r.role }}</span>
+        {% if r.is_best %}<span class="badge bg-success ms-1" style="font-size:10px;">⭐ Meilleure réponse</span>{% endif %}
+      </div>
+      <span class="text-muted" style="font-size:11px;">{{ r.created_at[:16] }}</span>
+    </div>
+    <div style="font-size:13px;line-height:1.7;white-space:pre-wrap;">{{ r.contenu }}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <!-- Formulaire réponse -->
+  {% if not q.is_resolved %}
+  <div class="fscf-card mt-3">
+    <div class="fscf-card-header"><i class="bi bi-reply-fill me-2"></i>Répondre</div>
+    <div class="fscf-card-body">
+      <form method="POST">
+        <textarea name="contenu" class="form-control mb-3" rows="4" placeholder="Votre réponse…" required></textarea>
+        <button type="submit" class="btn-fscf px-4"><i class="bi bi-send me-1"></i>Publier la réponse</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-success text-center"><i class="bi bi-check-circle me-2"></i>Cette question est résolue.</div>
+  {% endif %}
+
+</div>
+</div>
+{% endblock %}

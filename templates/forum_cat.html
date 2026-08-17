@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}{{ cat.nom }}{% endblock %}
+{% block page_title %}{{ cat.icon }} {{ cat.nom }}{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('forum_ask') }}" class="btn-fscf me-2"><i class="bi bi-plus-lg me-1"></i>Poser une question</a>
+<a href="{{ url_for('forum') }}" class="btn-fscf-outline"><i class="bi bi-arrow-left me-1"></i>Forum</a>
+{% endblock %}
+
+{% block content %}
+{% if qs %}
+{% for q in qs %}
+<div class="question-row {{ 'resolved' if q.is_resolved else 'open' }} mb-2">
+  <div class="d-flex align-items-start justify-content-between gap-2">
+    <div class="flex-grow-1">
+      <a href="{{ url_for('forum_question', id=q.id) }}" class="text-decoration-none fw-bold" style="font-size:14px;color:var(--navy);">
+        {% if q.is_resolved %}✅{% else %}❓{% endif %} {{ q.titre }}
+      </a>
+      <div style="font-size:11px;color:#888;margin-top:4px;">
+        par <strong>{{ q.prenom }} {{ q.nom }}</strong> · {{ q.created_at[:10] }}
+        · {{ q.nb }} réponse{{ 's' if q.nb > 1 }}
+      </div>
+    </div>
+    {% if q.is_resolved %}<span class="badge bg-success">Résolu</span>
+    {% else %}<span class="badge bg-danger">Ouvert</span>{% endif %}
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-chat-square fs-1 d-block mb-3"></i>
+  <p>Aucune question dans cette catégorie.</p>
+  <a href="{{ url_for('forum_ask') }}" class="btn-fscf">Être le premier à poser une question</a>
+</div>
+{% endif %}
+{% endblock %}

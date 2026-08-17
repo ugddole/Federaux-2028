@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}{{ p.prenom }} {{ p.nom }}{% endblock %}
+{% block page_title %}<i class="bi bi-person-badge me-2"></i>{{ p.prenom }} {{ p.nom }}{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('participant_badge', id=p.id) }}" class="btn-fscf me-2"><i class="bi bi-download me-1"></i>Badge PDF</a>
+{% if current_user.is_admin %}<a href="{{ url_for('participant_edit', id=p.id) }}" class="btn-fscf-outline"><i class="bi bi-pencil me-1"></i>Modifier</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- Infos + QR -->
+  <div class="col-lg-4">
+    <div class="fscf-card mb-3">
+      <div class="fscf-card-header pink"><i class="bi bi-person-fill me-2"></i>Fiche participant</div>
+      <div class="fscf-card-body">
+        <table class="w-100" style="font-size:13px;">
+          <tr><td class="text-muted py-1">Dossard</td><td><strong style="color:var(--pink);font-size:16px;">{{ p.numero_dossard }}</strong></td></tr>
+          <tr><td class="text-muted py-1">Catégorie</td><td><span class="role-badge role-participant">{{ p.categorie }}</span></td></tr>
+          <tr><td class="text-muted py-1">Club</td><td><strong>{{ p.club }}</strong></td></tr>
+          <tr><td class="text-muted py-1">Région</td><td>{{ p.region or '—' }}</td></tr>
+          <tr><td class="text-muted py-1">Email</td><td style="word-break:break-all;">{{ p.email }}</td></tr>
+          <tr><td class="text-muted py-1">Badge</td><td>{% if p.badge_generated %}<span class="badge bg-success">Généré</span>{% else %}<span class="badge bg-secondary">Non généré</span>{% endif %}</td></tr>
+          <tr><td class="text-muted py-1">Notes</td><td>{{ p.notes or '—' }}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="fscf-card">
+      <div class="fscf-card-header"><i class="bi bi-qr-code me-2"></i>QR Code d'accès</div>
+      <div class="fscf-card-body">
+        <div class="qr-container">
+          <img src="data:image/png;base64,{{ qr }}" alt="QR Code" class="img-fluid">
+          <div class="mt-2 text-muted" style="font-size:11px;">Token : <code>{{ p.qr_token[:16] }}…</code></div>
+        </div>
+        <a href="{{ url_for('participant_badge', id=p.id) }}" class="btn-fscf w-100 text-center text-decoration-none d-block mt-3 py-2">
+          <i class="bi bi-printer me-2"></i>Télécharger badge PDF
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Historique accès -->
+  <div class="col-lg-8">
+    <div class="fscf-card">
+      <div class="fscf-card-header blue"><i class="bi bi-clock-history me-2"></i>Historique des accès ({{ logs|length }})</div>
+      <div class="fscf-card-body p-0">
+        {% if logs %}
+        <table class="fscf-table">
+          <thead><tr><th>Date / Heure</th><th>Site</th><th>Statut</th><th>Scanné par</th></tr></thead>
+          <tbody>
+          {% for l in logs %}
+          <tr>
+            <td style="font-size:12px;">{{ l.timestamp }}</td>
+            <td>{{ l.site }}</td>
+            <td>
+              {% if l.statut == 'ok' %}<span class="badge bg-success">OK — Accès validé</span>
+              {% elif l.statut == 'deja_scanne' %}<span class="badge bg-warning text-dark">Déjà scanné</span>
+              {% else %}<span class="badge bg-danger">{{ l.statut }}</span>{% endif %}
+            </td>
+            <td style="font-size:12px;">{% if l.snom %}{{ l.sprenom }} {{ l.snom }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="p-5 text-center text-muted"><i class="bi bi-shield-check fs-1 d-block mb-2"></i>Aucun accès enregistré</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

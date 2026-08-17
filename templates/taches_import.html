@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Import tâches{% endblock %}
+{% block page_title %}<i class="bi bi-cloud-arrow-down-fill me-2"></i>Import du plan de tâches{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('taches_list') }}" class="btn-fscf-outline"><i class="bi bi-arrow-left me-1"></i>Retour</a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-7">
+
+  <div class="fscf-card mb-4">
+    <div class="fscf-card-header blue">
+      <span><i class="bi bi-info-circle me-2"></i>Format attendu</span>
+    </div>
+    <div class="fscf-card-body">
+      <p style="font-size:13px;color:#555;">
+        Importez le fichier Excel <strong>« Tâches Manifestation FSCF »</strong> : une ligne d'en-tête
+        (N°, Catégorie, Tâche, Délai/Échéance, Deadline, Priorité, Responsable, Statut, Notes) suivie des
+        lignes de tâches, éventuellement regroupées par des lignes de section (ignorées automatiquement).
+      </p>
+    </div>
+  </div>
+
+  <div class="fscf-card">
+    <div class="fscf-card-header pink"><i class="bi bi-upload me-2"></i>Importer un fichier Excel</div>
+    <div class="fscf-card-body">
+      <form method="POST" enctype="multipart/form-data" id="import-form">
+        <div id="drop-zone" onclick="document.getElementById('file-input').click()"
+             style="border:2px dashed #ccc;border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#fafafa;">
+          <i class="bi bi-file-earmark-arrow-up" style="font-size:48px;color:#ccc;display:block;margin-bottom:12px;"></i>
+          <div style="font-size:15px;font-weight:700;color:#555;">Glissez votre fichier ici</div>
+          <div style="font-size:12px;color:#aaa;margin-top:6px;">ou cliquez pour parcourir</div>
+          <div style="margin-top:12px;">
+            <span style="background:#e8f7ed;color:var(--green);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">XLSX</span>
+          </div>
+          <div id="file-name" style="margin-top:12px;font-size:13px;color:var(--pink);font-weight:700;display:none;"></div>
+        </div>
+        <input type="file" id="file-input" name="file" accept=".xlsx,.xls" style="display:none;" required>
+
+        <div class="d-grid mt-4">
+          <button type="submit" class="btn-fscf py-3" style="font-size:15px;" id="submit-btn" disabled>
+            <i class="bi bi-cloud-arrow-down-fill me-2"></i>Analyser le fichier
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const input   = document.getElementById('file-input');
+const dropZ   = document.getElementById('drop-zone');
+const nameDiv = document.getElementById('file-name');
+const btn     = document.getElementById('submit-btn');
+
+input.addEventListener('change', () => {
+  if (input.files.length) {
+    nameDiv.textContent = '📄 ' + input.files[0].name;
+    nameDiv.style.display = 'block';
+    dropZ.style.borderColor = 'var(--pink)';
+    dropZ.style.background  = '#fff5fa';
+    btn.disabled = false;
+  }
+});
+
+['dragover','dragenter'].forEach(ev => dropZ.addEventListener(ev, e => {
+  e.preventDefault(); dropZ.style.borderColor = 'var(--blue)'; dropZ.style.background = '#f0f7ff';
+}));
+['dragleave','drop'].forEach(ev => dropZ.addEventListener(ev, e => {
+  e.preventDefault(); dropZ.style.borderColor = '#ccc'; dropZ.style.background = '#fafafa';
+}));
+dropZ.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length) {
+    input.files = e.dataTransfer.files;
+    input.dispatchEvent(new Event('change'));
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Poser une question{% endblock %}
+{% block page_title %}<i class="bi bi-question-circle me-2"></i>Poser une question{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-7">
+<div class="fscf-card">
+  <div class="fscf-card-header pink"><i class="bi bi-chat-dots me-2"></i>Nouvelle question</div>
+  <div class="fscf-card-body">
+    <form method="POST">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Catégorie *</label>
+          <select name="cat" class="form-select" required>
+            <option value="">— Choisir une catégorie —</option>
+            {% for c in cats %}<option value="{{ c.id }}">{{ c.icon }} {{ c.nom }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Titre de la question *</label>
+          <input type="text" name="titre" class="form-control" required placeholder="Résumez votre question en une phrase…" maxlength="150">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Détail *</label>
+          <textarea name="contenu" class="form-control" rows="6" required placeholder="Décrivez votre question en détail…"></textarea>
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button type="submit" class="btn-fscf px-4 py-2"><i class="bi bi-send me-1"></i>Publier</button>
+          <a href="{{ url_for('forum') }}" class="btn btn-light px-4">Annuler</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+</div>
+</div>
+{% endblock %}

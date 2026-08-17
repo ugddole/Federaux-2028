@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block auth_content %}
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-box">D28</div>
+      <div class="login-title">DOLE 2028</div>
+      <div style="color:#888;font-size:12px;margin-top:4px;">Manifestation Nationale FSCF</div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="alert alert-{{ cat }} py-2 small">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="POST">
+      <div class="mb-3">
+        <label class="form-label fw-semibold" style="font-size:13px;">Email</label>
+        <input type="email" name="email" class="form-control" placeholder="votre@email.fr" required autofocus>
+      </div>
+      <div class="mb-4">
+        <label class="form-label fw-semibold" style="font-size:13px;">Mot de passe</label>
+        <input type="password" name="password" class="form-control" required>
+      </div>
+      <button type="submit" class="btn-fscf w-100 py-2" style="border-radius:8px;">
+        <i class="bi bi-box-arrow-in-right me-2"></i>Connexion
+      </button>
+    </form>
+
+    <div style="text-align:center;margin-top:20px;font-size:11px;color:#aaa;">
+      Compte admin par défaut :<br>admin@dole2028.fr / admin2028
+    </div>
+  </div>
+</div>
+{% endblock %}

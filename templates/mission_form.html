@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Nouvelle mission{% endblock %}
+{% block page_title %}<i class="bi bi-plus-circle me-2"></i>Nouvelle mission bénévole{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-6">
+<div class="fscf-card">
+  <div class="fscf-card-header green"><i class="bi bi-briefcase me-2"></i>Créer une mission</div>
+  <div class="fscf-card-body">
+    <form method="POST">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Nom de la mission *</label>
+          <input type="text" name="nom" class="form-control" required placeholder="Ex: Accueil entrée principale">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Description</label>
+          <textarea name="desc" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Site *</label>
+          <select name="site" class="form-select">
+            <option>Dole Expo</option>
+            <option>Centre-ville</option>
+            <option>Stade Robert Bobin</option>
+            <option>Hébergement</option>
+            <option>Autre</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Jour *</label>
+          <select name="jour" class="form-select">
+            <option>Vendredi 30 Juin</option>
+            <option>Samedi 1er Juillet</option>
+            <option>Dimanche 2 Juillet</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Heure début *</label>
+          <input type="time" name="hdebut" class="form-control" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Heure fin *</label>
+          <input type="time" name="hfin" class="form-control" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Nb places *</label>
+          <input type="number" name="places" class="form-control" value="1" min="1" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Couleur d'affichage</label>
+          <input type="color" name="couleur" class="form-control form-control-color" value="#E2007A">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Mission parente <span class="text-muted fw-normal">(optionnel — pour créer une sous-mission)</span></label>
+          <select name="parent_id" class="form-select">
+            <option value="">— Mission indépendante —</option>
+            {% for m in parent_missions %}
+            <option value="{{ m.id }}" {% if preselect_parent|string == m.id|string %}selected{% endif %}>
+              {{ m.nom }} — {{ m.jour }} ({{ m.heure_debut }}–{{ m.heure_fin }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button type="submit" class="btn-fscf px-4 py-2" style="background:var(--green);"><i class="bi bi-check-lg me-1"></i>Créer</button>
+          <a href="{{ url_for('planning') }}" class="btn btn-light px-4">Annuler</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+</div>
+</div>
+{% endblock %}

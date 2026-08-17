@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}Budget{% endblock %}
+{% block page_title %}<i class="bi bi-cash-coin me-2"></i>Suivi budgétaire{% endblock %}
+
+{% block topbar_actions %}
+{% if current_user.is_admin %}
+<a href="{{ url_for('budget_import') }}" class="btn btn-sm btn-outline-secondary me-2">
+  <i class="bi bi-cloud-arrow-down me-1"></i>Importer
+</a>
+{% endif %}
+<a href="{{ url_for('budget_new') }}" class="btn-fscf"><i class="bi bi-plus-lg me-1"></i>Nouvelle ligne</a>
+{% endblock %}
+
+{% block content %}
+{% macro fmt(n) %}{{ '{:,.0f}'.format(n).replace(',', ' ') }} €{% endmacro %}
+
+<!-- Totaux globaux -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon">📊</div>
+      <div><div class="stat-number" style="font-size:20px;">{{ fmt(totals.cout_estime) }}</div><div class="stat-label">Coût estimé</div></div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-card blue">
+      <div class="stat-icon">🏛️</div>
+      <div><div class="stat-number" style="font-size:20px;">{{ fmt(totals.subvention_prevue) }}</div><div class="stat-label">Subvention prévue</div></div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-card green">
+      <div class="stat-icon">💶</div>
+      <div><div class="stat-number" style="font-size:20px;">{{ fmt(totals.cout_reel) }}</div><div class="stat-label">Coût réel</div></div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="stat-card navy">
+      <div class="stat-icon">✅</div>
+      <div><div class="stat-number" style="font-size:20px;">{{ fmt(totals.subvention_recue) }}</div><div class="stat-label">Subvention reçue</div></div>
+    </div>
+  </div>
+</div>
+
+{% if not by_cat %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-cash-coin" style="font-size:3.5rem;opacity:.25;"></i>
+  <p class="mt-3 mb-4">Aucune ligne de budget pour le moment.</p>
+  <a href="{{ url_for('budget_new') }}" class="btn-fscf">Créer la première ligne</a>
+</div>
+{% else %}
+
+{% for cat, items in by_cat.items() %}
+{% set st = subtotals[cat] %}
+{% set ecart = st.cout_reel - st.cout_estime %}
+<div class="prog-day-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <span><i class="bi bi-folder2-open me-2"></i>{{ cat }}</span>
+  <span class="d-flex gap-3" style="font-size:11px;">
+    <span class="badge bg-white text-dark">Estimé {{ fmt(st.cout_estime) }}</span>
+    <span class="badge bg-white text-dark">Réel {{ fmt(st.cout_reel) }}</span>
+    <span class="badge {% if ecart > 0 %}bg-danger{% else %}bg-success{% endif %}">
+      Écart {{ fmt(ecart) if ecart <= 0 else '+' + fmt(ecart) }}
+    </span>
+  </span>
+</div>
+<div class="fscf-card mb-3">
+  <div class="fscf-card-body p-0" style="overflow-x:auto;">
+    <table class="fscf-table">
+      <thead><tr>
+        <th>Code</th><th>Poste</th><th>Détail</th>
+        <th>Coût estimé</th><th>Subvention prévue</th><th>Reste à charge (prév.)</th>
+        <th>Coût réel</th><th>Subvention reçue</th><th>Statut</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+      {% for l in items %}
+      <tr>
+        <td style="font-size:11px;color:#888;">{{ l.code }}</td>
+        <td><strong style="font-size:12px;">{{ l.poste }}</strong></td>
+        <td style="font-size:11px;color:#888;">{{ l.detail }}</td>
+        <td style="font-size:12px;">{{ fmt(l.cout_estime) }}</td>
+        <td style="font-size:12px;">{{ fmt(l.subvention_prevue) }}</td>
+        <td style="font-size:12px;">{{ fmt(l.reste_a_charge_prevu) }}</td>
+        <td style="font-size:12px;font-weight:700;">{{ fmt(l.cout_reel) }}</td>
+        <td style="font-size:12px;font-weight:700;">{{ fmt(l.subvention_recue) }}</td>
+        <td>
+          <span class="badge bg-{{ {'prevu':'secondary','engage':'info','realise':'success'}.get(l.statut,'secondary') }}">
+            {{ {'prevu':'Prévu','engage':'Engagé','realise':'Réalisé'}.get(l.statut, l.statut) }}
+          </span>
+        </td>
+        <td class="text-nowrap">
+          {% if can_edit(l.categorie) %}
+          <a href="{{ url_for('budget_edit', id=l.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+          <form method="POST" action="{{ url_for('budget_delete', id=l.id) }}" class="d-inline" onsubmit="return confirm('Supprimer cette ligne ?')">
+            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+          </form>
+          {% else %}
+          <span class="text-muted"><i class="bi bi-lock"></i></span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+{% block title %}Planning bénévoles{% endblock %}
+{% block page_title %}<i class="bi bi-calendar3-week me-2"></i>Planning des missions bénévoles{% endblock %}
+{% block topbar_actions %}
+{% if current_user.is_admin %}
+<a href="{{ url_for('mission_new') }}" class="btn-fscf"><i class="bi bi-plus-lg me-1"></i>Nouvelle mission</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<!-- Sélecteur bénévole pour affectation rapide -->
+{% if current_user.is_admin %}
+<div class="fscf-card mb-4">
+  <div class="fscf-card-body py-3">
+    <div class="row align-items-center g-2">
+      <div class="col-auto"><label class="fw-semibold" style="font-size:13px;">Affecter :</label></div>
+      <div class="col-md-4">
+        <select id="bev-select" class="form-select form-select-sm">
+          <option value="">— Choisir un bénévole —</option>
+          {% for b in benevoles %}
+          <option value="{{ b.id }}">{{ b.nom }} {{ b.prenom }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto text-muted" style="font-size:12px;"><i class="bi bi-info-circle me-1"></i>Sélectionnez un bénévole puis cliquez sur une mission pour l'affecter.</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if data %}
+  {% set days = data|map(attribute='m')|map(attribute='jour')|unique|list %}
+  {% for day in days %}
+  <div class="prog-day-header">
+    <i class="bi bi-calendar-event me-2"></i>{{ day }}
+  </div>
+  {% for item in data %}
+  {% if item.m.jour == day %}
+  <div class="mission-card" id="mc-{{ item.m.id }}">
+    <div class="mission-header" style="background:{{ item.m.couleur }};">
+      <div class="flex-grow-1">
+        <strong>{{ item.m.nom }}</strong>
+        <span class="ms-2" style="font-size:11px;opacity:.85;">{{ item.m.heure_debut }} – {{ item.m.heure_fin }}</span>
+        <span class="ms-2 badge bg-white text-dark" style="font-size:10px;">{{ item.m.site }}</span>
+      </div>
+      <span style="font-size:12px;opacity:.85;">{{ item.aff|length }}/{{ item.m.nb_places }} bénévoles</span>
+      {% if current_user.is_admin %}
+      <form method="POST" action="{{ url_for('mission_delete', id=item.m.id) }}" class="ms-2" onsubmit="return confirm('Supprimer cette mission ?')">
+        <button type="submit" class="btn btn-sm btn-light py-0" title="Supprimer"><i class="bi bi-trash" style="font-size:11px;"></i></button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="mission-body">
+      {% if item.m.description %}<div style="font-size:12px;color:#666;margin-bottom:8px;">{{ item.m.description }}</div>{% endif %}
+      <div class="progress-bar-sm mb-3">
+        <div class="progress-fill" style="width:{{ [(item.aff|length / item.m.nb_places * 100)|int, 100]|min }}%;background:{{ item.m.couleur }};"></div>
+      </div>
+      <div id="chips-{{ item.m.id }}">
+        {% for a in item.aff %}
+        <span class="benevole-chip">
+          <i class="bi bi-person-fill" style="font-size:12px;"></i>
+          {{ a.prenom }} {{ a.nom }}
+          {% if current_user.is_admin %}
+          <button class="remove-btn" onclick="retirer({{ a.id }}, {{ item.m.id }})" title="Retirer">×</button>
+          {% endif %}
+        </span>
+        {% endfor %}
+        {% if not item.aff %}<span class="slot-empty">Aucun bénévole affecté</span>{% endif %}
+      </div>
+      {% if current_user.is_admin and item.manque > 0 %}
+      <button class="btn btn-sm mt-2" style="border:1px dashed {{ item.m.couleur }};color:{{ item.m.couleur }};font-size:11px;"
+              onclick="affecter({{ item.m.id }})">
+        <i class="bi bi-plus-circle me-1"></i>Affecter bénévole (+{{ item.manque }} place{{ 's' if item.manque > 1 }})
+      </button>
+      {% endif %}
+
+      {% if current_user.is_admin %}
+      <!-- ── Tâches associées ── -->
+      <div class="mt-3 pt-2" style="border-top:1px dashed rgba(0,0,0,.15);">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <small class="fw-semibold" style="font-size:11px;color:#555;">
+            <i class="bi bi-check2-square me-1"></i>TÂCHES
+            <span class="badge bg-secondary ms-1" style="font-size:9px;">{{ item.taches|length }}</span>
+          </small>
+          <a href="{{ url_for('tache_new', mission=item.m.id) }}"
+             class="btn btn-sm"
+             style="font-size:10px;padding:2px 8px;border:1px dashed {{ item.m.couleur }};color:{{ item.m.couleur }};">
+            <i class="bi bi-plus-lg"></i> Ajouter une tâche
+          </a>
+        </div>
+        {% set p_colors = {'urgente':'danger','haute':'warning','normale':'primary','basse':'secondary'} %}
+        {% if item.taches %}
+        <div class="d-flex flex-column gap-1 mb-1">
+        {% for t in item.taches %}
+        <a href="{{ url_for('tache_detail', id=t.id) }}"
+           class="text-decoration-none d-flex align-items-center gap-2 px-2 py-1 rounded"
+           style="background:rgba(0,0,0,.04);font-size:12px;">
+          <span class="badge bg-{{ p_colors[t.priorite] }}" style="font-size:8px;min-width:42px;">{{ t.priorite }}</span>
+          <span class="flex-grow-1 text-dark {% if t.statut == 'termine' %}text-decoration-line-through text-muted{% endif %}">{{ t.titre }}</span>
+          {% if t.total_st and t.total_st > 0 %}
+          <span class="text-muted text-nowrap" style="font-size:10px;">{{ t.done_st }}/{{ t.total_st }} <i class="bi bi-check2-all"></i></span>
+          {% endif %}
+          <i class="bi bi-chevron-right text-muted" style="font-size:10px;"></i>
+        </a>
+        {% endfor %}
+        </div>
+        {% else %}
+        <small class="text-muted" style="font-size:11px;">Aucune tâche liée.</small>
+        {% endif %}
+      </div>
+
+      <!-- ── Sous-missions ── -->
+      <div class="mt-3 pt-2" style="border-top:1px dashed rgba(0,0,0,.15);">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <small class="fw-semibold" style="font-size:11px;color:#555;">
+            <i class="bi bi-diagram-3 me-1"></i>SOUS-MISSIONS
+            <span class="badge bg-secondary ms-1" style="font-size:9px;">{{ item.sous_data|length }}</span>
+          </small>
+          <a href="{{ url_for('mission_new', parent=item.m.id) }}"
+             class="btn btn-sm"
+             style="font-size:10px;padding:2px 8px;border:1px dashed {{ item.m.couleur }};color:{{ item.m.couleur }};">
+            <i class="bi bi-plus-lg"></i> Ajouter une sous-mission
+          </a>
+        </div>
+
+        {% for sitem in item.sous_data %}
+        <div class="sous-mission-card" id="mc-{{ sitem.m.id }}">
+          <div class="sous-mission-header" style="background:{{ sitem.m.couleur }};">
+            <i class="bi bi-arrow-return-right me-1" style="opacity:.7;"></i>
+            <div class="flex-grow-1">
+              <strong>{{ sitem.m.nom }}</strong>
+              <span class="ms-2" style="opacity:.85;">{{ sitem.m.heure_debut }}–{{ sitem.m.heure_fin }}</span>
+              <span class="ms-1 badge bg-white text-dark" style="font-size:9px;">{{ sitem.m.site }}</span>
+            </div>
+            <span style="opacity:.85;">{{ sitem.aff|length }}/{{ sitem.m.nb_places }}</span>
+            <form method="POST" action="{{ url_for('mission_delete', id=sitem.m.id) }}" class="ms-2"
+                  onsubmit="return confirm('Supprimer « {{ sitem.m.nom }} » ?')">
+              <button type="submit" class="btn btn-sm btn-light py-0" title="Supprimer">
+                <i class="bi bi-trash" style="font-size:10px;"></i>
+              </button>
+            </form>
+          </div>
+          <div class="sous-mission-body">
+            {% if sitem.m.description %}<div style="font-size:11px;color:#666;margin-bottom:6px;">{{ sitem.m.description }}</div>{% endif %}
+            <div class="progress-bar-sm mb-2">
+              <div class="progress-fill" style="width:{{ [(sitem.aff|length / sitem.m.nb_places * 100)|int, 100]|min }}%;background:{{ sitem.m.couleur }};"></div>
+            </div>
+            <div id="chips-{{ sitem.m.id }}">
+              {% for a in sitem.aff %}
+              <span class="benevole-chip" style="font-size:11px;">
+                <i class="bi bi-person-fill" style="font-size:10px;"></i>
+                {{ a.prenom }} {{ a.nom }}
+                <button class="remove-btn" onclick="retirer({{ a.id }}, {{ sitem.m.id }})" title="Retirer">×</button>
+              </span>
+              {% endfor %}
+              {% if not sitem.aff %}<span class="slot-empty">Aucun bénévole</span>{% endif %}
+            </div>
+            {% if sitem.manque > 0 %}
+            <button class="btn btn-sm mt-2" style="border:1px dashed {{ sitem.m.couleur }};color:{{ sitem.m.couleur }};font-size:11px;"
+                    onclick="affecter({{ sitem.m.id }})">
+              <i class="bi bi-plus-circle me-1"></i>Affecter (+{{ sitem.manque }})
+            </button>
+            {% endif %}
+            <!-- Tâches de la sous-mission -->
+            {% if sitem.taches %}
+            <div class="mt-2 pt-2" style="border-top:1px dashed rgba(0,0,0,.1);">
+              <small class="fw-semibold text-muted" style="font-size:10px;"><i class="bi bi-check2-square me-1"></i>TÂCHES</small>
+              <div class="d-flex flex-column gap-1 mt-1">
+              {% for t in sitem.taches %}
+              <a href="{{ url_for('tache_detail', id=t.id) }}"
+                 class="text-decoration-none d-flex align-items-center gap-2 px-2 py-1 rounded"
+                 style="background:rgba(0,0,0,.04);font-size:11px;">
+                <span class="badge bg-{{ p_colors[t.priorite] }}" style="font-size:7px;">{{ t.priorite }}</span>
+                <span class="flex-grow-1 text-dark {% if t.statut == 'termine' %}text-decoration-line-through text-muted{% endif %}">{{ t.titre }}</span>
+                {% if t.total_st and t.total_st > 0 %}
+                <span class="text-muted" style="font-size:9px;">{{ t.done_st }}/{{ t.total_st }}</span>
+                {% endif %}
+              </a>
+              {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+
+        {% if not item.sous_data %}
+        <small class="text-muted" style="font-size:11px;">Aucune sous-mission.</small>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% endfor %}
+{% else %}
+<div class="text-center py-5 text-muted"><i class="bi bi-calendar-x fs-1 d-block mb-3"></i>Aucune mission créée.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function affecter(mid) {
+  const bid = document.getElementById('bev-select').value;
+  if (!bid) { alert('Sélectionnez d\'abord un bénévole dans la liste en haut.'); return; }
+  fetch('/api/affecter', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({bid: parseInt(bid), mid: mid, action: 'add'})
+  }).then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.error); });
+}
+function retirer(bid, mid) {
+  if (!confirm('Retirer ce bénévole de la mission ?')) return;
+  fetch('/api/affecter', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({bid: bid, mid: mid, action: 'remove'})
+  }).then(r => r.json()).then(d => { if (d.success) location.reload(); });
+}
+</script>
+{% endblock %}

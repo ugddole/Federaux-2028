@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Modifier la tâche' if action == 'edit' else 'Nouvelle tâche' }}{% endblock %}
+{% block page_title %}
+<i class="bi bi-check2-square me-2"></i>{{ 'Modifier la tâche' if action == 'edit' else 'Nouvelle tâche' }}
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-6 col-md-8">
+<div class="fscf-card">
+  <div class="fscf-card-body">
+    <form method="POST">
+
+      <div class="mb-3">
+        <label class="form-label fw-bold">Titre <span class="text-danger">*</span></label>
+        <input type="text" name="titre" class="form-control" required maxlength="200"
+               value="{{ item.titre if item else '' }}" placeholder="Nom de la tâche">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-bold">Description</label>
+        <textarea name="description" class="form-control" rows="3"
+                  placeholder="Décrivez la tâche (optionnel)…">{{ item.description if item else '' }}</textarea>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          <label class="form-label fw-bold">Priorité</label>
+          <select name="priorite" class="form-select">
+            {% set cur_prio = item.priorite if item else 'Important' %}
+            <option value="Recommandé" {% if cur_prio == 'Recommandé' %}selected{% endif %}>Recommandé</option>
+            <option value="Important"  {% if cur_prio == 'Important'  %}selected{% endif %}>Important</option>
+            <option value="Impératif"  {% if cur_prio == 'Impératif'  %}selected{% endif %}>Impératif</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-bold">Statut</label>
+          <select name="statut" class="form-select">
+            {% set cur_statut = item.statut if item else 'todo' %}
+            <option value="todo"     {% if cur_statut == 'todo'     %}selected{% endif %}>À faire</option>
+            <option value="en_cours" {% if cur_statut == 'en_cours' %}selected{% endif %}>En cours</option>
+            <option value="termine"  {% if cur_statut == 'termine'  %}selected{% endif %}>Terminé</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          <label class="form-label fw-bold">Catégorie <span class="text-danger">*</span></label>
+          <input type="text" name="categorie" class="form-control" required list="cat-list"
+                 value="{{ item.categorie if item else '' }}" placeholder="Ex : FINANCES">
+          <datalist id="cat-list">
+            {% for c in editable_cats %}<option value="{{ c }}">{% endfor %}
+          </datalist>
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-bold">Responsable</label>
+          <select name="responsable_id" class="form-select">
+            <option value="">— Non assigné —</option>
+            {% for r in responsables %}
+            <option value="{{ r.id }}" {% if item and item.responsable_id == r.id %}selected{% endif %}>
+              {{ r.prenom }} {{ r.nom }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          <label class="form-label fw-bold">Délai (libellé)</label>
+          <input type="text" name="delai_libelle" class="form-control"
+                 value="{{ item.delai_libelle if item else '' }}" placeholder="Ex : J-18 mois">
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-bold">Échéance</label>
+          <input type="date" name="echeance" class="form-control"
+                 value="{{ item.echeance if item else '' }}">
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label fw-bold">Mission bénévole associée</label>
+        <select name="mission_id" class="form-select">
+          <option value="">— Aucune —</option>
+          {% for m in missions %}
+          {% set is_selected = (item and item.mission_id == m.id) or (preselect_mission|string == m.id|string) %}
+          <option value="{{ m.id }}" {% if is_selected %}selected{% endif %}>
+            {{ m.nom }} — {{ m.jour }} ({{ m.heure_debut }}–{{ m.heure_fin }})
+          </option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Rattachez cette tâche à une mission bénévole du planning.</div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn-fscf px-4 py-2">
+          <i class="bi bi-check-lg me-1"></i>{{ 'Mettre à jour' if action == 'edit' else 'Créer la tâche' }}
+        </button>
+        {% if action == 'edit' %}
+        <a href="{{ url_for('tache_detail', id=item.id) }}" class="btn btn-outline-secondary px-4 py-2">Annuler</a>
+        {% else %}
+        <a href="{{ url_for('taches_list') }}" class="btn btn-outline-secondary px-4 py-2">Annuler</a>
+        {% endif %}
+      </div>
+
+    </form>
+  </div>
+</div>
+</div>
+</div>
+{% endblock %}

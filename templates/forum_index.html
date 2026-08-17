@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Forum{% endblock %}
+{% block page_title %}<i class="bi bi-chat-dots-fill me-2"></i>Forum de questions{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('forum_ask') }}" class="btn-fscf"><i class="bi bi-plus-lg me-1"></i>Poser une question</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-7">
+    <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:11px;letter-spacing:1px;">Catégories</h6>
+    {% for c in cats %}
+    <a href="{{ url_for('forum_cat', id=c.id) }}" class="forum-cat-card">
+      <div class="forum-icon">{{ c.icon }}</div>
+      <div class="flex-grow-1">
+        <div class="forum-cat-name">{{ c.nom }}</div>
+        <div class="forum-cat-desc">{{ c.description }}</div>
+      </div>
+      <div class="text-end">
+        <div class="forum-badge">{{ c.nb }}</div>
+        {% if c.ouvertes %}<div style="font-size:10px;color:var(--pink);margin-top:3px;">{{ c.ouvertes }} ouverte{{ 's' if c.ouvertes > 1 }}</div>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="col-lg-5">
+    <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:11px;letter-spacing:1px;">Questions récentes</h6>
+    {% for q in recent %}
+    <div class="question-row {{ 'resolved' if q.is_resolved else 'open' }} mb-2">
+      <div class="d-flex align-items-start justify-content-between gap-2">
+        <div>
+          <a href="{{ url_for('forum_question', id=q.id) }}" class="text-decoration-none fw-bold" style="font-size:13px;color:var(--navy);">
+            {{ q.titre }}
+          </a>
+          <div style="font-size:11px;color:#888;margin-top:3px;">
+            <span class="badge bg-light text-dark border">{{ q.cat_nom }}</span>
+            par {{ q.prenom }} {{ q.nom }} · {{ q.created_at[:10] }}
+          </div>
+        </div>
+        <div class="text-end flex-shrink-0">
+          <span style="font-size:11px;color:#aaa;">{{ q.nb_rep }} rep.</span><br>
+          {% if q.is_resolved %}<span class="badge bg-success" style="font-size:9px;">Résolu</span>
+          {% else %}<span class="badge bg-danger" style="font-size:9px;">Ouvert</span>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted"><i class="bi bi-chat fs-2 d-block mb-2"></i>Aucune question pour l'instant.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

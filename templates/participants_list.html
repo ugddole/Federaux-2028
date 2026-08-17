@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}Participants{% endblock %}
+{% block page_title %}<i class="bi bi-people-fill me-2"></i>Gymnastes participants ({{ items|length }}){% endblock %}
+{% block topbar_actions %}
+{% if current_user.is_admin %}
+<a href="{{ url_for('import_adagio') }}" class="btn-fscf-outline me-2" title="Importer depuis ADAGIO" style="border-color:#0066CC;color:#0066CC;">
+  <i class="bi bi-cloud-arrow-down-fill me-1"></i>Import ADAGIO
+</a>
+<a href="{{ url_for('participant_new') }}" class="btn-fscf"><i class="bi bi-plus-lg me-1"></i>Ajouter</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="fscf-card">
+  <div class="fscf-card-body">
+    <form method="GET" class="row g-2 mb-3">
+      <div class="col-md-6">
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="🔍 Rechercher nom, club, dossard…">
+      </div>
+      <div class="col-md-3">
+        <select name="cat" class="form-select">
+          <option value="">Toutes catégories</option>
+          {% for c in cats %}<option value="{{ c.categorie }}" {% if cat==c.categorie %}selected{% endif %}>{{ c.categorie }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn-fscf px-4 py-2">Filtrer</button>
+        <a href="{{ url_for('participants_list') }}" class="btn btn-light ms-1">Effacer</a>
+      </div>
+    </form>
+
+    {% if items %}
+    <table class="fscf-table">
+      <thead><tr>
+        <th>Dossard</th><th>Nom / Prénom</th><th>Club</th><th>Catégorie</th><th>Badge</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+      {% for p in items %}
+      <tr>
+        <td><code style="color:var(--pink);font-weight:700;">{{ p.numero_dossard }}</code></td>
+        <td>
+          <a href="{{ url_for('participant_detail', id=p.id) }}" class="text-decoration-none fw-bold" style="color:var(--navy);">
+            {{ p.nom }} {{ p.prenom }}
+          </a><br>
+          <small class="text-muted">{{ p.email }}</small>
+        </td>
+        <td>{{ p.club }}<br><small class="text-muted">{{ p.region }}</small></td>
+        <td><span class="role-badge role-participant">{{ p.categorie }}</span></td>
+        <td>
+          {% if p.badge_generated %}
+            <span class="badge bg-success">Généré</span>
+          {% else %}
+            <span class="badge bg-secondary">Non</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('participant_detail', id=p.id) }}" class="btn btn-sm btn-outline-secondary me-1" title="Détail"><i class="bi bi-eye"></i></a>
+          <a href="{{ url_for('participant_badge', id=p.id) }}" class="btn btn-sm btn-outline-danger me-1" title="Badge PDF"><i class="bi bi-download"></i></a>
+          {% if current_user.is_admin %}
+          <a href="{{ url_for('participant_edit', id=p.id) }}" class="btn btn-sm btn-outline-primary me-1" title="Modifier"><i class="bi bi-pencil"></i></a>
+          <button class="btn btn-sm btn-outline-danger" title="Supprimer" onclick="deleteParticipant({{ p.id }}, '{{ p.prenom }} {{ p.nom }}')"><i class="bi bi-trash"></i></button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-people fs-1 d-block mb-3"></i>
+      <p>Aucun participant trouvé.</p>
+      {% if current_user.is_admin %}<a href="{{ url_for('participant_new') }}" class="btn-fscf">Ajouter le premier participant</a>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function deleteParticipant(id, name) {
+  if (!confirm(`Supprimer ${name} ? Cette action est irréversible.`)) return;
+  fetch(`/participants/${id}/delete`, {method:'POST', headers:{'Content-Type':'application/json'}})
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); });
+}
+</script>
+{% endblock %}

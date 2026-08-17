@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Programme{% endblock %}
+{% block page_title %}<i class="bi bi-list-ol me-2"></i>Programme des concours{% endblock %}
+{% block topbar_actions %}
+{% if current_user.is_admin %}
+<a href="{{ url_for('programme_new') }}" class="btn-fscf"><i class="bi bi-plus-lg me-1"></i>Ajouter créneau</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if by_day %}
+  {% for day, items in by_day.items() %}
+  <div class="prog-day-header">
+    <i class="bi bi-calendar-event me-2"></i>{{ day }}
+    <span class="ms-2 badge bg-white text-dark" style="font-size:11px;">{{ items|length }} créneaux</span>
+  </div>
+  {% for it in items %}
+  <div class="prog-row">
+    <div class="prog-time">{{ it.heure_debut }} – {{ it.heure_fin }}</div>
+    <div class="prog-cat">
+      🤸 {{ it.categorie }}
+      {% if it.notes %}<br><small class="text-muted fw-normal">{{ it.notes }}</small>{% endif %}
+    </div>
+    <div class="text-center"><span class="prog-site">📍 {{ it.site }}</span></div>
+    {% if it.nb_gymnastes > 0 %}
+    <div><span class="prog-nb">{{ it.nb_gymnastes }} gymnastes</span></div>
+    {% endif %}
+    {% if current_user.is_admin %}
+    <div class="ms-auto d-flex gap-1">
+      <a href="{{ url_for('programme_edit', id=it.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+      <form method="POST" action="{{ url_for('programme_del', id=it.id) }}" onsubmit="return confirm('Supprimer ce créneau ?')">
+        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endfor %}
+{% else %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-calendar-x fs-1 d-block mb-3"></i>
+  <p>Aucun créneau dans le programme.</p>
+  {% if current_user.is_admin %}<a href="{{ url_for('programme_new') }}" class="btn-fscf">Ajouter le premier créneau</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

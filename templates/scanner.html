@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% block title %}Scanner QR{% endblock %}
+{% block page_title %}<i class="bi bi-qr-code-scan me-2"></i>Scanner de badges{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- Scanner -->
+  <div class="col-lg-5">
+    <div class="fscf-card mb-3">
+      <div class="fscf-card-header blue"><i class="bi bi-camera-video me-2"></i>Scanner par caméra</div>
+      <div class="fscf-card-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold" style="font-size:13px;">Site de contrôle</label>
+          <select id="site-select" class="form-select form-select-sm">
+            <option>Entrée principale — Dole Expo</option>
+            <option>Entrée secondaire — Dole Expo</option>
+            <option>Stade Robert Bobin</option>
+            <option>Défilé Centre-ville</option>
+          </select>
+        </div>
+        <div id="reader" class="mb-3"></div>
+        <div id="scan-result"></div>
+      </div>
+    </div>
+
+    <!-- Saisie manuelle -->
+    <div class="fscf-card">
+      <div class="fscf-card-header"><i class="bi bi-keyboard me-2"></i>Saisie manuelle du token</div>
+      <div class="fscf-card-body">
+        <div class="input-group">
+          <input type="text" id="manual-token" class="form-control form-control-sm" placeholder="Coller le token UUID…">
+          <button class="btn btn-sm btn-dark" onclick="scanManual()"><i class="bi bi-check-lg"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logs récents -->
+  <div class="col-lg-7">
+    <div class="fscf-card">
+      <div class="fscf-card-header"><i class="bi bi-clock-history me-2"></i>Derniers accès (20)</div>
+      <div class="fscf-card-body p-0" id="logs-container">
+        {% if logs %}
+        <table class="fscf-table">
+          <thead><tr><th>Heure</th><th>Gymnaste</th><th>Cat.</th><th>Dossard</th><th>Site</th><th>Statut</th></tr></thead>
+          <tbody>
+          {% for l in logs %}
+          <tr>
+            <td style="font-size:11px;color:#888;">{{ l.timestamp[11:16] }}</td>
+            <td><strong>{{ l.prenom }} {{ l.nom }}</strong><br><small class="text-muted">{{ l.club }}</small></td>
+            <td style="font-size:11px;">{{ l.categorie }}</td>
+            <td><code>{{ l.numero_dossard }}</code></td>
+            <td style="font-size:11px;">{{ l.site }}</td>
+            <td>
+              {% if l.statut=='ok' %}<span class="badge bg-success">✓ OK</span>
+              {% elif l.statut=='deja_scanne' %}<span class="badge bg-warning text-dark">⚠ Déjà scanné</span>
+              {% else %}<span class="badge bg-danger">✗ Invalide</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="p-5 text-center text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i>Aucun scan enregistré</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+let scanner = null;
+
+function showResult(data) {
+  const box = document.getElementById('scan-result');
+  let cls, icon, content;
+  if (data.statut === 'ok') {
+    cls = 'scan-ok'; icon = '✅';
+    content = `<div class="scan-name">${data.prenom} ${data.nom}</div>
+               <div style="font-size:13px;margin-top:4px;">${data.club} — ${data.categorie}</div>
+               <div><strong>Dossard N° ${data.dossard}</strong></div>
+               <div class="badge bg-success mt-2">Accès VALIDÉ</div>`;
+  } else if (data.statut === 'deja_scanne') {
+    cls = 'scan-warn'; icon = '⚠️';
+    content = `<div class="scan-name">${data.prenom} ${data.nom}</div>
+               <div class="badge bg-warning text-dark mt-2">DÉJÀ SCANNÉ aujourd'hui</div>`;
+  } else {
+    cls = 'scan-err'; icon = '❌';
+    content = `<div class="scan-name">Accès REFUSÉ</div>
+               <div style="font-size:13px;">${data.message || 'QR code non reconnu'}</div>`;
+  }
+  box.innerHTML = `<div class="scan-result ${cls}">${icon}<br>${content}</div>`;
+  setTimeout(() => { box.innerHTML = ''; }, 4000);
+}
+
+async function doScan(token) {
+  const site = document.getElementById('site-select').value;
+  try {
+    const r = await fetch('/api/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({token, site})
+    });
+    const d = await r.json();
+    showResult(d);
+    if (r.ok) setTimeout(() => location.reload(), 4500);
+  } catch(e) {
+    showResult({statut: 'erreur', message: 'Erreur de connexion'});
+  }
+}
+
+function scanManual() {
+  const t = document.getElementById('manual-token').value.trim();
+  if (t) doScan(t);
+}
+
+// Start camera scanner
+const html5Qr = new Html5Qrcode("reader");
+html5Qr.start(
+  {facingMode: "environment"},
+  {fps: 10, qrbox: {width: 250, height: 250}},
+  (decoded) => { html5Qr.pause(); doScan(decoded); setTimeout(() => html5Qr.resume(), 4000); },
+  () => {}
+).catch(err => {
+  document.getElementById('reader').innerHTML =
+    '<div class="alert alert-warning text-center p-3"><i class="bi bi-camera-video-off me-2"></i>Caméra non disponible.<br><small>Utilisez la saisie manuelle ci-dessous.</small></div>';
+});
+</script>
+{% endblock %}
