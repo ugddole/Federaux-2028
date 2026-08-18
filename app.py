@@ -1323,10 +1323,11 @@ def parse_taches_file(file_storage):
         responsable_txt = str(row[6]).strip() if len(row) > 6 and row[6] else ''
         statut_txt = _normalize(row[7]).strip() if len(row) > 7 and row[7] else ''
         statut = STATUT_MAP.get(statut_txt, 'todo')
-        notes = str(row[8]).strip() if len(row) > 8 and row[8] else ''
+        lien = str(row[8]).strip() if len(row) > 8 and row[8] else ''
+        notes = str(row[9]).strip() if len(row) > 9 and row[9] else ''
         data.append(dict(categorie=categorie, titre=titre, delai_libelle=delai_libelle,
-                          echeance=echeance, priorite=priorite, responsable_txt=responsable_txt,
-                          statut=statut, notes=notes))
+    echeance=echeance, priorite=priorite, responsable_txt=responsable_txt,
+    statut=statut, lien=lien, notes=notes))
     return data
 
 def _match_responsable(conn, txt):
@@ -1396,10 +1397,10 @@ def taches_import_confirm():
             skip += 1
             continue
         conn.execute('''INSERT INTO taches
-            (titre,description,statut,priorite,echeance,categorie,responsable_id,delai_libelle,created_by)
-            VALUES (?,?,?,?,?,?,?,?,?)''',
-            (r['titre'], r.get('notes',''), r['statut'], r['priorite'], r['echeance'],
-             r['categorie'], r.get('responsable_id'), r['delai_libelle'], current_user.id))
+    (titre,description,statut,priorite,echeance,categorie,responsable_id,delai_libelle,lien,created_by)
+    VALUES (?,?,?,?,?,?,?,?,?,?)''',
+    (r['titre'], r.get('notes',''), r['statut'], r['priorite'], r['echeance'],
+    r['categorie'], r.get('responsable_id'), r['delai_libelle'], r.get('lien',''), current_user.id))
         ok += 1
     conn.commit(); conn.close()
     flash(f'✅ Import terminé — {ok} tâche(s) créée(s), {skip} ignorée(s).', 'success' if ok else 'warning')
