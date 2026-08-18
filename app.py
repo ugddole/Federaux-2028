@@ -1615,6 +1615,52 @@ def budget_import_confirm():
     flash(f'✅ Import terminé — {ok} ligne(s) créée(s), {skip} ignorée(s).', 'success' if ok else 'warning')
     return redirect(url_for('budget_list'))
 
+# ── EXPORT TÂCHES ────────────────────────────────────────────────────────────
+STATUT_LABELS = {'todo': 'À faire', 'en_cours': 'En cours', 'termine': 'Terminé'}
+
+@app.route('/taches/export')
+@login_required
+def taches_export():
+    if not current_user.is_staff: abort(403)
+    import openpyxl
+    from openpyxl.styles import Font
+
+    conn = get_db()
+    taches = conn.execute('''
+        SELECT t.*, u.nom resp_nom, u.prenom resp_prenom
+        FROM taches t
+        LEFT JOIN users u ON t.responsable_id = u.id
+        ORDER BY t.categorie, t.created_at
+    ''').fetchall()
+    conn.close()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Taches'
+
+    ws.append(['Export tâches — Dole 2028'])
+    ws.append(['N°', 'Catégorie', 'Titre', 'Délai', 'Échéance', 'Priorité', 'Responsable', 'Statut', 'Notes'])
+    for cell in ws[2]:
+        cell.font = Font(bold=True)
+
+    for i, t in enumerate(taches, start=1):
+        responsable = f"{t['resp_prenom']} {t['resp_nom']}" if t['resp_nom'] else ''
+        statut_label = STATUT_LABELS.get(t['statut'], t['statut'])
+        ws.append([
+            i, t['categorie'] or '', t['titre'], t['delai_libelle'] or '',
+            t['echeance'] or '', t['priorite'] or '', responsable,
+            statut_label, t['description'] or ''
+        ])
+
+    for col, width in zip('ABCDEFGHI', [5, 20, 35, 15, 12, 12, 20, 12, 30]):
+        ws.column_dimensions[col].width = width
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                      download_name='taches_dole2028.xlsx',
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 # ── RUN ───────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     init_db()
