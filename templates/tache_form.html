@@ -23,6 +23,14 @@
                   placeholder="Décrivez la tâche (optionnel)…">{{ item.description if item else '' }}</textarea>
       </div>
 
+      <div class="form-group">
+  <label for="lien"><i class="bi bi-link-45deg"></i> Lien vers document</label>
+  <input type="url" id="lien" name="lien" class="form-control" 
+         placeholder="https://drive.google.com/file/..." 
+         value="{{ item.lien or '' }}">
+  <small class="form-text text-muted">Lien public Google Drive ou autre archive</small>
+</div>
+
       <div class="row g-3 mb-3">
         <div class="col-6">
           <label class="form-label fw-bold">Priorité</label>
