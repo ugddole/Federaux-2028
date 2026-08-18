@@ -198,6 +198,11 @@ def init_db():
         conn.commit()
     except Exception:
         pass
+    try:
+    c.execute("ALTER TABLE taches ADD COLUMN lien TEXT DEFAULT ''")
+    conn.commit()
+except Exception:
+    pass
 
     if not c.execute("SELECT id FROM users WHERE email='admin@dole2028.fr'").fetchone():
         c.execute("INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)",
