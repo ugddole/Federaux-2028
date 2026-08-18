@@ -1644,7 +1644,7 @@ def taches_export():
     ws.title = 'Taches'
 
     ws.append(['Export tâches — Dole 2028'])
-    ws.append(['N°', 'Catégorie', 'Titre', 'Délai', 'Échéance', 'Priorité', 'Responsable', 'Statut', 'Notes'])
+    ws.append(['N°', 'Catégorie', 'Titre', 'Délai', 'Échéance', 'Priorité', 'Responsable', 'Statut', 'Lien', 'Notes'])
     for cell in ws[2]:
         cell.font = Font(bold=True)
 
@@ -1652,13 +1652,12 @@ def taches_export():
         responsable = f"{t['resp_prenom']} {t['resp_nom']}" if t['resp_nom'] else ''
         statut_label = STATUT_LABELS.get(t['statut'], t['statut'])
         ws.append([
-            i, t['categorie'] or '', t['titre'], t['delai_libelle'] or '',
-            t['echeance'] or '', t['priorite'] or '', responsable,
-            statut_label, t['description'] or ''
-        ])
+    i, t['categorie'] or '', t['titre'], t['delai_libelle'] or '',
+    t['echeance'] or '', t['priorite'] or '', responsable,
+    statut_label, t['lien'] or '', t['description'] or ''
+])
 
-    for col, width in zip('ABCDEFGHI', [5, 20, 35, 15, 12, 12, 20, 12, 30]):
-        ws.column_dimensions[col].width = width
+    for col, width in zip('ABCDEFGHIJ', [5, 20, 35, 15, 12, 12, 20, 12, 30, 30]):
 
     buf = BytesIO()
     wb.save(buf)
