@@ -1664,12 +1664,13 @@ def taches_export():
     init_db()
 
     if __name__ == '__main__':
-    print("\n" + "="*52)
-    print("   DOLE 2028 — Application de Gestion FSCF")
-    print("="*52)
-    print("   Navigateur  : http://localhost:5000")
-    print("   Admin       : admin@dole2028.fr")
-    print("   Mot de passe: admin2028")
-    print("="*52 + "\n")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+        init_db()
+        print("\n" + "="*52)
+        print("   DOLE 2028 — Application de Gestion FSCF")
+        print("="*52)
+        print("   Navigateur  : http://localhost:5000")
+        print("   Admin       : admin@dole2028.fr")
+        print("   Mot de passe: admin2028")
+        print("="*52 + "\n")
+        app.run(debug=True, host='0.0.0.0', port=5000)
  
