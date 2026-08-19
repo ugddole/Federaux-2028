@@ -75,6 +75,15 @@
         </div>
         {% endif %}
 
+        {% if t.lien %}
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Lien</small>
+          <a href="{{ t.lien }}" target="_blank" rel="noopener" class="text-decoration-none">
+            <i class="bi bi-link-45deg me-1"></i>Ouvrir le lien
+          </a>
+        </div>
+        {% endif %}
+
         {% if t.description %}
         <div class="mb-3">
           <small class="text-muted d-block mb-1">Description</small>
