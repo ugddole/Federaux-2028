@@ -1,75 +1,85 @@
 {% extends 'base.html' %}
-{% block title %}{% if action=='new' %}Nouveau bénévole{% else %}Modifier bénévole{% endif %}{% endblock %}
-{% block page_title %}<i class="bi bi-person-heart me-2"></i>{% if action=='new' %}Nouveau bénévole{% else %}Modifier {{ item.prenom }} {{ item.nom }}{% endif %}{% endblock %}
+{% block title %}{{ 'Modifier la ligne' if action == 'edit' else 'Nouvelle ligne de budget' }}{% endblock %}{% block title %}{{ 'Modifier la ligne' if action == 'edit' else 'Nouvelle ligne de budget' }}{% endblock %}
+{% block page_title %}
+<i class="bi bi-cash-coin me-2"></i>{{ 'Modifier la ligne' if action == 'edit' else 'Nouvelle ligne de budget' }}<i class="bi bi-cash-coin me-2"></i>{{ 'Modifier la ligne' if action == 'edit' else 'Nouvelle ligne de budget' }}
+{% endblock %}
+
 {% block content %}
-{% set droit_labels = {
-  'participants': 'Participants',
-  'competition': 'Compétition',
-  'communication': 'Communication',
-  'organisation': 'Organisation',
-  'administration': 'Administration'
-} %}
-{% set item_droits = (item.droits or '').split(',') if item and item.droits else [] %}
 <div class="row justify-content-center">
-<div class="col-lg-6">
+<div class="col-lg-7 col-md-9">
 <div class="fscf-card">
-  <div class="fscf-card-header green"><i class="bi bi-person-heart me-2"></i>{% if action=='new' %}Créer un bénévole{% else %}Modifier{% endif %}</div>
   <div class="fscf-card-body">
     <form method="POST">
-      <div class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Prénom *</label>
-          <input type="text" name="prenom" class="form-control" value="{{ item.prenom if item else '' }}" required>
+
+      <div class="row g-3 mb-3">
+        <div class="col-4">
+          <label class="form-label fw-bold">Catégorie <span class="text-danger">*</span></label>
+          <input type="text" name="categorie" class="form-control" required list="cat-list"
+                 value="{{ item.categorie if item else '' }}" placeholder="Ex : LOGISTIQUE & MATERIEL">
+          <datalist id="cat-list">
+            {% for c in editable_cats %}<option value="{{ c }}">{% endfor %}
+          </datalist>
         </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Nom *</label>
-          <input type="text" name="nom" class="form-control" value="{{ item.nom if item else '' }}" required>
+        <div class="col-2">
+          <label class="form-label fw-bold">Code</label>
+          <input type="text" name="code" class="form-control" value="{{ item.code if item else '' }}" placeholder="1.1">
         </div>
-        {% if action == 'new' %}
-        <div class="col-md-7">
-          <label class="form-label fw-semibold">Email *</label>
-          <input type="email" name="email" class="form-control" required>
-        </div>
-        <div class="col-md-5">
-          <label class="form-label fw-semibold">Mot de passe</label>
-          <input type="text" name="password" class="form-control" value="benevole2028">
-        </div>
-        {% endif %}
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Téléphone</label>
-          <input type="tel" name="tel" class="form-control" value="{{ item.telephone if item else '' }}">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Taille T-shirt</label>
-          <select name="tshirt" class="form-select">
-            {% for s in ['XS','S','M','L','XL','XXL'] %}
-            <option value="{{ s }}" {% if item and item.tshirt==s %}selected{% elif not item and s=='M' %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-12">
-          <label class="form-label fw-semibold">Notes / Disponibilités</label>
-          <textarea name="notes" class="form-control" rows="3" placeholder="Ex: disponible samedi matin uniquement…">{{ item.notes if item else '' }}</textarea>
-        </div>
-        <div class="col-12">
-          <label class="form-label fw-semibold">Droits d'accès</label>
-          <div class="d-flex flex-wrap gap-3 p-3" style="background:#f8f9fa; border-radius:8px;">
-            {% for key, label in droit_labels.items() %}
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="droits" value="{{ key }}" id="droit_{{ key }}"
-                {% if key in item_droits %}checked{% endif %}>
-              <label class="form-check-label" for="droit_{{ key }}">{{ label }}</label>
-            </div>
-            {% endfor %}
-          </div>
-        </div>
-        <div class="col-12 d-flex gap-2">
-          <button type="submit" class="btn-fscf px-4 py-2" style="background:var(--green);">
-            <i class="bi bi-check-lg me-1"></i>{% if action=='new' %}Créer{% else %}Enregistrer{% endif %}
-          </button>
-          <a href="{{ url_for('benevoles_list') }}" class="btn btn-light px-4">Annuler</a>
+        <div class="col-6">
+          <label class="form-label fw-bold">Poste <span class="text-danger">*</span></label>
+          <input type="text" name="poste" class="form-control" required maxlength="200"
+                 value="{{ item.poste if item else '' }}">
         </div>
       </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-bold">Détail / Description</label>
+        <input type="text" name="detail" class="form-control" value="{{ item.detail if item else '' }}">
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          <label class="form-label fw-bold">Coût estimé (€)</label>
+          <input type="number" step="0.01" name="cout_estime" class="form-control" value="{{ item.cout_estime if item else 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-bold">Subvention prévue (€)</label>
+          <input type="number" step="0.01" name="subvention_prevue" class="form-control" value="{{ item.subvention_prevue if item else 0 }}">
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          <label class="form-label fw-bold">Coût réel (€)</label>
+          <input type="number" step="0.01" name="cout_reel" class="form-control" value="{{ item.cout_reel if item else 0 }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-bold">Subvention reçue (€)</label>
+          <input type="number" step="0.01" name="subvention_recue" class="form-control" value="{{ item.subvention_recue if item else 0 }}">
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label fw-bold">Statut</label>
+        <select name="statut" class="form-select">
+          {% set cur = item.statut if item else 'prevu' %}
+          <option value="prevu"   {% if cur == 'prevu'   %}selected{% endif %}>Prévu</option>
+          <option value="engage"  {% if cur == 'engage'  %}selected{% endif %}>Engagé</option>
+          <option value="realise" {% if cur == 'realise' %}selected{% endif %}>Réalisé</option>
+        </select>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label fw-bold">Notes</label>
+        <textarea name="notes" class="form-control" rows="2">{{ item.notes if item else '' }}</textarea>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn-fscf px-4 py-2">
+          <i class="bi bi-check-lg me-1"></i>{{ 'Mettre à jour' if action == 'edit' else 'Créer la ligne' }}
+        </button>
+        <a href="{{ url_for('budget_list') }}" class="btn btn-outline-secondary px-4 py-2">Annuler</a>        <a href="{{ url_for('budget_list') }}" class="btn btn-outline-secondary px-4 py-2">Annuler</a>
+      </div>
+
     </form>
   </div>
 </div>
