@@ -1664,7 +1664,6 @@ def taches_export():
     init_db()
 
     if __name__ == '__main__':
-    init_db()
     print("\n" + "="*52)
     print("   DOLE 2028 — Application de Gestion FSCF")
     print("="*52)
