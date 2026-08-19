@@ -602,9 +602,6 @@ def _mission_item(conn, m):
 
 @app.route('/planning')
 @login_required
-def participants_list():
-    ...
-@login_required
 def planning():
     conn = get_db()
     parent_missions = conn.execute(
