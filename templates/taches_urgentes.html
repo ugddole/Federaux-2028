@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Tâches urgentes{% endblock %}
+{% block page_title %}<i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Tâches à faire dans le mois{% endblock %}
+
+{% block content %}
+
+{% set priorite_colors = {'Impératif':'danger','Important':'warning','Recommandé':'secondary'} %}
+{% set statut_colors   = {'todo':'secondary','en_cours':'info','termine':'success'} %}
+{% set statut_labels   = {'todo':'À faire','en_cours':'En cours','termine':'Terminé'} %}
+
+{% if en_retard %}
+<div class="prog-day-header d-flex align-items-center" style="background:#dc3545;color:white;">
+  <i class="bi bi-x-octagon-fill me-2"></i>En retard ({{ en_retard|length }})
+</div>
+<div class="row g-2 mb-4">
+  {% for t in en_retard %}
+  <div class="col-12">
+    <div class="fscf-card" style="border-left:4px solid #dc3545;">
+      <div class="fscf-card-body d-flex align-items-center gap-3 py-3">
+        <div class="flex-grow-1 min-width-0">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <span class="badge bg-{{ priorite_colors.get(t.priorite,'secondary') }}">{{ t.priorite or '—' }}</span>
+            <span class="badge bg-{{ statut_colors[t.statut] }}">{{ statut_labels[t.statut] }}</span>
+            <span class="badge bg-danger"><i class="bi bi-calendar3 me-1"></i>{{ t.echeance }}</span>
+            {% if t.resp_nom %}
+            <span class="badge bg-light text-dark border"><i class="bi bi-person-fill me-1"></i>{{ t.resp_prenom }} {{ t.resp_nom }}</span>
+            {% endif %}
+            {% if t.categorie %}
+            <span class="badge bg-light text-dark border"><i class="bi bi-folder2-open me-1"></i>{{ t.categorie }}</span>
+            {% endif %}
+          </div>
+          <div class="fw-semibold">{{ t.titre }}</div>
+        </div>
+        <a href="{{ url_for('tache_detail', id=t.id) }}" class="btn btn-sm btn-outline-primary flex-shrink-0">
+          <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="prog-day-header d-flex align-items-center">
+  <i class="bi bi-hourglass-split me-2"></i>À échéance dans les 2 mois ({{ a_venir|length }})
+</div>
+{% if a_venir %}
+<div class="row g-2">
+  {% for t in a_venir %}
+  <div class="col-12">
+    <div class="fscf-card" style="border-left:4px solid var(--bs-{{ priorite_colors.get(t.priorite,'secondary') }}-rgb,#888);">
+      <div class="fscf-card-body d-flex align-items-center gap-3 py-3">
+        <div class="flex-grow-1 min-width-0">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <span class="badge bg-{{ priorite_colors.get(t.priorite,'secondary') }}">{{ t.priorite or '—' }}</span>
+            <span class="badge bg-{{ statut_colors[t.statut] }}">{{ statut_labels[t.statut] }}</span>
+            <span class="badge bg-warning text-dark"><i class="bi bi-calendar3 me-1"></i>{{ t.echeance }}</span>
+            {% if t.resp_nom %}
+            <span class="badge bg-light text-dark border"><i class="bi bi-person-fill me-1"></i>{{ t.resp_prenom }} {{ t.resp_nom }}</span>
+            {% endif %}
+            {% if t.categorie %}
+            <span class="badge bg-light text-dark border"><i class="bi bi-folder2-open me-1"></i>{{ t.categorie }}</span>
+            {% endif %}
+          </div>
+          <div class="fw-semibold">{{ t.titre }}</div>
+        </div>
+        <a href="{{ url_for('tache_detail', id=t.id) }}" class="btn btn-sm btn-outline-primary flex-shrink-0">
+          <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">Aucune tâche à échéance proche.</p>
+{% endif %}
+
+{% endblock %}
