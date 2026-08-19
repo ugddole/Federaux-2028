@@ -394,11 +394,6 @@ def login():
 
 @app.route('/logout')
 @login_required
-@app.route('/participants')
-@login_required
-@require_droit('participants')
-def participants_list():
-    ...
 def logout():
     logout_user()
     return redirect(url_for('login'))
@@ -429,6 +424,7 @@ def dashboard():
 # ── PARTICIPANTS ──────────────────────────────────────────────────────────────
 @app.route('/participants')
 @login_required
+@require_droit('participants')
 def participants_list():
     conn = get_db()
     q, cat = request.args.get('q',''), request.args.get('cat','')
@@ -566,29 +562,6 @@ def benevole_new():
             flash('Email déjà utilisé.', 'danger')
     return render_template('benevole_form.html', action='new', item=None)
 
-@app.route('/benevoles/new', methods=['GET','POST'])
-@login_required
-def benevole_new():
-    if not current_user.is_admin: abort(403)
-    if request.method == 'POST':
-        f = request.form
-        droits = ','.join(request.form.getlist('droits'))
-        conn = get_db()
-        try:
-            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,droits) VALUES (?,?,?,?,?,?)',
-                (f['email'].strip().lower(), generate_password_hash(f.get('password','benevole2028')),
-                 f['nom'].strip(), f['prenom'].strip(), 'benevole', droits))
-            uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
-            conn.execute('INSERT INTO benevoles (user_id,telephone,tshirt,notes) VALUES (?,?,?,?)',
-                (uid, f.get('tel',''), f.get('tshirt','M'), f.get('notes','')))
-            conn.commit(); conn.close()
-            flash(f"Bénévole {f['prenom']} {f['nom']} créé.", 'success')
-            return redirect(url_for('benevoles_list'))
-        except sqlite3.IntegrityError:
-            conn.rollback(); conn.close()
-            flash('Email déjà utilisé.', 'danger')
-    return render_template('benevole_form.html', action='new', item=None)
-
 @app.route('/benevoles/<int:id>/edit', methods=['GET','POST'])
 @login_required
 def benevole_edit(id):
@@ -628,9 +601,7 @@ def _mission_item(conn, m):
     return {'m': m, 'aff': aff, 'manque': m['nb_places'] - len(aff), 'taches': taches}
 
 @app.route('/planning')
-@app.route('/participants')
 @login_required
-@require_droit('participants')
 def participants_list():
     ...
 @login_required
@@ -754,11 +725,6 @@ def programme_edit(id):
     return render_template('programme_form.html', item=item)
 
 @app.route('/programme/<int:id>/delete', methods=['POST'])
-@app.route('/participants')
-@login_required
-@require_droit('participants')
-def participants_list():
-    ...
 @login_required
 def programme_del(id):
     if not current_user.is_admin: abort(403)
@@ -770,11 +736,6 @@ def programme_del(id):
 
 # ── FORUM ─────────────────────────────────────────────────────────────────────
 @app.route('/forum')
-@app.route('/participants')
-@login_required
-@require_droit('participants')
-def participants_list():
-    ...
 @login_required
 def forum():
     conn = get_db()
@@ -897,11 +858,6 @@ def api_scan():
 
 # ── ADMIN ─────────────────────────────────────────────────────────────────────
 @app.route('/admin')
-@app.route('/participants')
-@login_required
-@require_droit('participants')
-def participants_list():
-    ...
 @login_required
 def admin():
     if not current_user.is_admin: abort(403)
