@@ -16,7 +16,7 @@ login_manager.login_view = 'login'
 login_manager.login_message = 'Veuillez vous connecter.'
 login_manager.login_message_category = 'warning'
 
-DATABASE = 'dole2028.db'
+DATABASE = os.environ.get('DATABASE_PATH', 'dole2028.db')
 BADGES_DIR = 'badges'
 QR_DIR = os.path.join('static', 'qr')
 TMP_DIR  = os.path.join('static', 'tmp')
