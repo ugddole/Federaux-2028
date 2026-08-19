@@ -61,6 +61,11 @@
           {% if t.echeance %}
           <small class="text-muted"><i class="bi bi-calendar3 me-1"></i>{{ t.echeance }}</small>
           {% endif %}
+          {% if t.lien %}
+          <a href="{{ t.lien }}" target="_blank" rel="noopener" class="text-decoration-none" title="Ouvrir le lien" onclick="event.stopPropagation()">
+            <i class="bi bi-link-45deg"></i>
+          </a>
+          {% endif %}
         </div>
         <div class="fw-semibold">{{ t.titre }}</div>
         {% if t.description %}
