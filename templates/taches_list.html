@@ -32,11 +32,14 @@
 
 {% for cat, items in by_cat.items() %}
 {% set done_count = items | selectattr('t.statut', 'equalto', 'termine') | list | length %}
-<div class="prog-day-header d-flex align-items-center justify-content-between">
-  <span><i class="bi bi-folder2-open me-2"></i>{{ cat }}</span>
-  <span class="badge bg-white text-dark" style="font-size:11px;">{{ done_count }}/{{ items|length }} terminées</span>
+<div class="prog-day-header d-flex align-items-center justify-content-between" style="cursor:pointer;" onclick="toggleCat({{ loop.index }})">
+ <span><i class="bi bi-folder2-open me-2"></i>{{ cat }}</span>
+ <span class="d-flex align-items-center gap-2">
+   <span class="badge bg-white text-dark" style="font-size:11px;">{{ done_count }}/{{ items|length }} terminées</span>
+   <i class="bi bi-dash-square" id="cat-icon-{{ loop.index }}" style="font-size:1.1rem;"></i>
+ </span>
 </div>
-<div class="row g-2 mb-3">
+<div class="row g-2 mb-3" id="cat-body-{{ loop.index }}">
 {% for d in items %}
 {% set t = d.t %}
 {% set pct = ((d.done / d.total * 100)|int) if d.total > 0 else 0 %}
@@ -97,4 +100,18 @@
 {% endfor %}
 
 {% endif %}
+<script>
+function toggleCat(idx) {
+  const body = document.getElementById('cat-body-' + idx);
+  const icon = document.getElementById('cat-icon-' + idx);
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    icon.classList.remove('bi-plus-square');
+    icon.classList.add('bi-dash-square');
+  } else {
+    body.style.display = 'none';
+    icon.classList.remove('bi-dash-square');
+    icon.classList.add('bi-plus-square');
+  }
+}
 {% endblock %}
