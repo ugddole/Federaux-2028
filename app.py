@@ -171,7 +171,17 @@ def init_db():
             updated_at TEXT DEFAULT (datetime('now'))
         );
     ''')
+    conn.commit()
+    conn.close()
 
+def migrate_db():
+    conn = get_db()
+    cols = [row['name'] for row in conn.execute("PRAGMA table_info(taches)").fetchall()]
+    if 'lien' not in cols:
+        conn.execute("ALTER TABLE taches ADD COLUMN lien TEXT DEFAULT ''")
+    conn.commit()
+    conn.close()
+    
     # Migrations
     try:
         c.execute("ALTER TABLE taches ADD COLUMN mission_id INTEGER DEFAULT NULL REFERENCES missions(id)")
@@ -1662,7 +1672,8 @@ def taches_export():
 
 # ── RUN ───────────────────────────────────────────────────────────────────────
     init_db()
-
+    migrate_db()
+    
     if __name__ == '__main__':
         init_db()
         print("\n" + "="*52)
