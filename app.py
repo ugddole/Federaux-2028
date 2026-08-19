@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3, qrcode, os, uuid, csv, json, unicodedata, tempfile, re
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO, StringIO
 import base64
 from fpdf import FPDF
@@ -1137,6 +1137,37 @@ def _editable_categories(conn):
     if current_user.is_admin:
         return _tache_categories(conn)
     return current_user.categories()
+    
+@app.route('/taches/urgentes')
+@login_required
+def taches_urgentes():
+    if not current_user.is_staff: abort(403)
+    conn = get_db()
+    taches = conn.execute('''
+        SELECT t.*, m.nom mission_nom, m.couleur mission_couleur, u.nom resp_nom, u.prenom resp_prenom
+        FROM taches t
+        LEFT JOIN missions m ON t.mission_id = m.id
+        LEFT JOIN users u ON t.responsable_id = u.id
+        WHERE t.echeance != '' AND t.statut != 'termine'
+        ORDER BY t.echeance
+    ''').fetchall()
+    conn.close()
+
+    today = datetime.now().date()
+    limite = today + timedelta(days=60)
+
+    en_retard, a_venir = [], []
+    for t in taches:
+        try:
+            d = datetime.strptime(t['echeance'], '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            continue
+        if d < today:
+            en_retard.append(t)
+        elif d <= limite:
+            a_venir.append(t)
+
+    return render_template('taches_urgentes.html', en_retard=en_retard, a_venir=a_venir, today=today)
 
 @app.route('/taches')
 @login_required
