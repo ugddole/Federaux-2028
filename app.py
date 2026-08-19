@@ -531,7 +531,7 @@ def participant_badge(id):
 def benevoles_list():
     conn = get_db()
     items = conn.execute('''
-        SELECT b.*,u.nom,u.prenom,u.email,COUNT(a.id) nb
+        SELECT b.*,u.nom,u.prenom,u.email,u.droits,COUNT(a.id) nb
         FROM benevoles b JOIN users u ON b.user_id=u.id
         LEFT JOIN affectations a ON b.id=a.benevole_id
         GROUP BY b.id ORDER BY u.nom,u.prenom
