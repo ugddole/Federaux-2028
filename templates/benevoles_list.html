@@ -7,14 +7,27 @@
 <a href="{{ url_for('planning') }}" class="btn-fscf-outline"><i class="bi bi-calendar3-week me-1"></i>Planning</a>
 {% endif %}
 {% endblock %}
-
 {% block content %}
+{% set droit_colors = {
+  'participants': '#0066CC',
+  'competition': '#E2007A',
+  'communication': '#009944',
+  'organisation': '#6a0dad',
+  'administration': '#c9302c'
+} %}
+{% set droit_labels = {
+  'participants': 'Participants',
+  'competition': 'Compétition',
+  'communication': 'Communication',
+  'organisation': 'Organisation',
+  'administration': 'Administration'
+} %}
 <div class="fscf-card">
   <div class="fscf-card-body p-0">
     {% if items %}
     <table class="fscf-table">
       <thead><tr>
-        <th>Nom / Prénom</th><th>Email</th><th>Téléphone</th><th>T-shirt</th><th>Missions</th><th>Actions</th>
+        <th>Nom / Prénom</th><th>Email</th><th>Téléphone</th><th>T-shirt</th><th>Missions</th><th>Droits</th><th>Actions</th>
       </tr></thead>
       <tbody>
       {% for b in items %}
@@ -25,6 +38,18 @@
         <td><span class="badge bg-secondary">{{ b.tshirt }}</span></td>
         <td>
           <span class="badge" style="background:var(--pink);">{{ b.nb }} mission{{ 's' if b.nb > 1 else '' }}</span>
+        </td>
+        <td>
+          {% set b_droits = (b.droits or '').split(',') if b.droits else [] %}
+          {% if b_droits %}
+            {% for d in b_droits %}
+              {% if d %}
+              <span class="badge me-1 mb-1" style="background:{{ droit_colors.get(d, '#999') }};">{{ droit_labels.get(d, d) }}</span>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <span class="text-muted" style="font-size:12px;">—</span>
+          {% endif %}
         </td>
         <td>
           {% if current_user.is_admin %}
@@ -46,7 +71,6 @@
   </div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script>
 function deleteBenevole(id, name) {
