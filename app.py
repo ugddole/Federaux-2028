@@ -215,6 +215,11 @@ def migrate_db():
         conn.commit()
     except Exception:
         pass
+    try:
+        c.execute("ALTER TABLE taches ADD COLUMN lien TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        pass
 
     if not c.execute("SELECT id FROM users WHERE email='admin@dole2028.fr'").fetchone():
         c.execute("INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)",
@@ -1170,12 +1175,13 @@ def tache_new():
         mid = f.get('mission_id') or None
         rid = f.get('responsable_id') or None
         conn.execute('''INSERT INTO taches
-            (titre,description,statut,priorite,echeance,mission_id,created_by,categorie,responsable_id,delai_libelle)
-            VALUES (?,?,?,?,?,?,?,?,?,?)''',
+            (titre,description,statut,priorite,echeance,mission_id,created_by,categorie,responsable_id,delai_libelle,lien)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
             (f['titre'].strip(), f.get('description','').strip(),
              f.get('statut','todo'), f.get('priorite','normale'),
              f.get('echeance',''), mid, current_user.id,
-             categorie, rid, f.get('delai_libelle','').strip()))
+             categorie, rid, f.get('delai_libelle','').strip(),
+             f.get('lien','').strip()))
         tid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         conn.commit(); conn.close()
         flash('Tâche créée.', 'success')
@@ -1223,10 +1229,11 @@ def tache_edit(id):
         mid = f.get('mission_id') or None
         rid = f.get('responsable_id') or None
         conn.execute('''UPDATE taches SET titre=?,description=?,statut=?,priorite=?,echeance=?,mission_id=?,
-            categorie=?,responsable_id=?,delai_libelle=? WHERE id=?''',
+            categorie=?,responsable_id=?,delai_libelle=?,lien=? WHERE id=?''',
             (f['titre'].strip(), f.get('description','').strip(),
              f.get('statut','todo'), f.get('priorite','normale'),
-             f.get('echeance',''), mid, categorie, rid, f.get('delai_libelle','').strip(), id))
+             f.get('echeance',''), mid, categorie, rid, f.get('delai_libelle','').strip(),
+             f.get('lien','').strip(), id))
         conn.commit(); conn.close()
         flash('Tâche mise à jour.', 'success')
         return redirect(url_for('tache_detail', id=id))
