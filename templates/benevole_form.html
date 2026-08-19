@@ -1,8 +1,15 @@
 {% extends 'base.html' %}
 {% block title %}{% if action=='new' %}Nouveau bénévole{% else %}Modifier bénévole{% endif %}{% endblock %}
 {% block page_title %}<i class="bi bi-person-heart me-2"></i>{% if action=='new' %}Nouveau bénévole{% else %}Modifier {{ item.prenom }} {{ item.nom }}{% endif %}{% endblock %}
-
 {% block content %}
+{% set droit_labels = {
+  'participants': 'Participants',
+  'competition': 'Compétition',
+  'communication': 'Communication',
+  'organisation': 'Organisation',
+  'administration': 'Administration'
+} %}
+{% set item_droits = (item.droits or '').split(',') if item and item.droits else [] %}
 <div class="row justify-content-center">
 <div class="col-lg-6">
 <div class="fscf-card">
@@ -43,6 +50,18 @@
         <div class="col-12">
           <label class="form-label fw-semibold">Notes / Disponibilités</label>
           <textarea name="notes" class="form-control" rows="3" placeholder="Ex: disponible samedi matin uniquement…">{{ item.notes if item else '' }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Droits d'accès</label>
+          <div class="d-flex flex-wrap gap-3 p-3" style="background:#f8f9fa; border-radius:8px;">
+            {% for key, label in droit_labels.items() %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="droits" value="{{ key }}" id="droit_{{ key }}"
+                {% if key in item_droits %}checked{% endif %}>
+              <label class="form-check-label" for="droit_{{ key }}">{{ label }}</label>
+            </div>
+            {% endfor %}
+          </div>
         </div>
         <div class="col-12 d-flex gap-2">
           <button type="submit" class="btn-fscf px-4 py-2" style="background:var(--green);">
