@@ -1661,6 +1661,9 @@ def taches_export():
                       mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ── RUN ───────────────────────────────────────────────────────────────────────
+    init_db()
+
+if __name__ == '__main__':
 if __name__ == '__main__':
     init_db()
     print("\n" + "="*52)
