@@ -10,13 +10,7 @@
 <div class="fscf-card">
   <div class="fscf-card-body">
     <form method="POST">
-
-      <div class="mb-3">
-        <label class="form-label fw-bold">Titre <span class="text-danger">*</span></label>
-        <input type="text" name="titre" class="form-control" required maxlength="200"
-               value="{{ item.titre if item else '' }}" placeholder="Nom de la tâche">
-      </div>
-
+  
       <div class="mb-3">
         <label class="form-label fw-bold">Description</label>
         <textarea name="description" class="form-control" rows="3"
