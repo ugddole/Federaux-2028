@@ -202,7 +202,7 @@ def init_db():
         c.execute("ALTER TABLE taches ADD COLUMN lien TEXT DEFAULT ''")
         conn.commit()
     except Exception:
-        pass    
+        pass
 
     if not c.execute("SELECT id FROM users WHERE email='admin@dole2028.fr'").fetchone():
         c.execute("INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)",
@@ -1326,8 +1326,8 @@ def parse_taches_file(file_storage):
         lien = str(row[8]).strip() if len(row) > 8 and row[8] else ''
         notes = str(row[9]).strip() if len(row) > 9 and row[9] else ''
         data.append(dict(categorie=categorie, titre=titre, delai_libelle=delai_libelle,
-    echeance=echeance, priorite=priorite, responsable_txt=responsable_txt,
-    statut=statut, lien=lien, notes=notes))
+                          echeance=echeance, priorite=priorite, responsable_txt=responsable_txt,
+                          statut=statut, lien=lien, notes=notes))
     return data
 
 def _match_responsable(conn, txt):
@@ -1397,10 +1397,10 @@ def taches_import_confirm():
             skip += 1
             continue
         conn.execute('''INSERT INTO taches
-    (titre,description,statut,priorite,echeance,categorie,responsable_id,delai_libelle,lien,created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?)''',
-    (r['titre'], r.get('notes',''), r['statut'], r['priorite'], r['echeance'],
-    r['categorie'], r.get('responsable_id'), r['delai_libelle'], r.get('lien',''), current_user.id))
+            (titre,description,statut,priorite,echeance,categorie,responsable_id,delai_libelle,lien,created_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?)''',
+            (r['titre'], r.get('notes',''), r['statut'], r['priorite'], r['echeance'],
+             r['categorie'], r.get('responsable_id'), r['delai_libelle'], r.get('lien',''), current_user.id))
         ok += 1
     conn.commit(); conn.close()
     flash(f'✅ Import terminé — {ok} tâche(s) créée(s), {skip} ignorée(s).', 'success' if ok else 'warning')
@@ -1627,7 +1627,7 @@ STATUT_LABELS = {'todo': 'À faire', 'en_cours': 'En cours', 'termine': 'Termin�
 @app.route('/taches/export')
 @login_required
 def taches_export():
-    if not current_user.is_staff: 
+    if not current_user.is_staff:
         abort(403)
     import openpyxl
     from openpyxl.styles import Font
@@ -1648,22 +1648,18 @@ def taches_export():
         cell.font = Font(bold=True)
     for i, t in enumerate(taches, start=1):
         responsable = f"{t['resp_prenom']} {t['resp_nom']}" if t['resp_nom'] else ''
-        ws.append([i, t['categorie'] or '', t['titre'], t['delai_libelle'] or '', t['echeance'] or '', t['priorite'] or '', responsable, t['statut'] or '', t['lien'] or '', t['description'] or ''])
-    for col in 'ABCDEFGHIJ':
-        ws.column_dimensions[col].width = 20
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return send_file(buf, as_attachment=True, download_name='taches_dole2028.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
+        ws.append([i, t['categorie'] or '', t['titre'], t['delai_libelle'] or '', t['echeance'] or '',
+                   t['priorite'] or '', responsable, STATUT_LABELS.get(t['statut'], t['statut']),
+                   t['lien'] or '', t['description'] or ''])
     for col, width in zip('ABCDEFGHIJ', [5, 20, 35, 15, 12, 12, 20, 12, 30, 30]):
-
+        ws.column_dimensions[col].width = width
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True,
                       download_name='taches_dole2028.xlsx',
                       mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 # ── RUN ───────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     init_db()
@@ -1675,3 +1671,4 @@ if __name__ == '__main__':
     print("   Mot de passe: admin2028")
     print("="*52 + "\n")
     app.run(debug=True, host='0.0.0.0', port=5000)
+ 
