@@ -6,6 +6,7 @@ from datetime import datetime
 from io import BytesIO, StringIO
 import base64
 from fpdf import FPDF
+from functools import wraps
 
 app = Flask(__name__)
 app.secret_key = 'dole2028-fscf-secret-key'
@@ -209,6 +210,11 @@ def migrate_db():
         conn.commit()
     except Exception:
         pass
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN droits TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        pass
 
     if not c.execute("SELECT id FROM users WHERE email='admin@dole2028.fr'").fetchone():
         c.execute("INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)",
@@ -241,6 +247,8 @@ def migrate_db():
     conn.close()
 
 # ── USER MODEL ────────────────────────────────────────────────────────────────
+DROITS_DISPONIBLES = ['participants', 'competition', 'communication', 'organisation', 'administration']
+
 class User(UserMixin):
     def __init__(self, row):
         self.id = row['id']
@@ -248,14 +256,15 @@ class User(UserMixin):
         self.nom = row['nom']
         self.prenom = row['prenom']
         self.role = row['role']
-
+        self.droits = (row['droits'] or '').split(',') if row['droits'] else []
     @property
     def is_admin(self): return self.role == 'admin'
     @property
     def is_staff(self): return self.role in ('admin', 'responsable')
     @property
     def full_name(self): return f"{self.prenom} {self.nom}"
-
+    def has_droit(self, droit):
+        return self.is_admin or droit in self.droits
     def categories(self):
         if not hasattr(self, '_categories'):
             conn = get_db()
@@ -273,9 +282,18 @@ def load_user(uid):
 
 def can_edit(categorie):
     return current_user.is_admin or categorie in current_user.categories()
-
 app.jinja_env.globals['can_edit'] = can_edit
+app.jinja_env.globals['DROITS_DISPONIBLES'] = DROITS_DISPONIBLES
 
+def require_droit(droit):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if not current_user.has_droit(droit):
+                abort(403)
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
 # ── QR / BADGE ────────────────────────────────────────────────────────────────
 def qr_to_base64(token):
     qr = qrcode.QRCode(version=1, box_size=10, border=3)
@@ -376,6 +394,11 @@ def login():
 
 @app.route('/logout')
 @login_required
+@app.route('/participants')
+@login_required
+@require_droit('participants')
+def participants_list():
+    ...
 def logout():
     logout_user()
     return redirect(url_for('login'))
@@ -526,11 +549,35 @@ def benevole_new():
     if not current_user.is_admin: abort(403)
     if request.method == 'POST':
         f = request.form
+        droits = ','.join(request.form.getlist('droits'))
         conn = get_db()
         try:
-            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)',
+            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,droits) VALUES (?,?,?,?,?,?)',
                 (f['email'].strip().lower(), generate_password_hash(f.get('password','benevole2028')),
-                 f['nom'].strip(), f['prenom'].strip(), 'benevole'))
+                 f['nom'].strip(), f['prenom'].strip(), 'benevole', droits))
+            uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            conn.execute('INSERT INTO benevoles (user_id,telephone,tshirt,notes) VALUES (?,?,?,?)',
+                (uid, f.get('tel',''), f.get('tshirt','M'), f.get('notes','')))
+            conn.commit(); conn.close()
+            flash(f"Bénévole {f['prenom']} {f['nom']} créé.", 'success')
+            return redirect(url_for('benevoles_list'))
+        except sqlite3.IntegrityError:
+            conn.rollback(); conn.close()
+            flash('Email déjà utilisé.', 'danger')
+    return render_template('benevole_form.html', action='new', item=None)
+
+@app.route('/benevoles/new', methods=['GET','POST'])
+@login_required
+def benevole_new():
+    if not current_user.is_admin: abort(403)
+    if request.method == 'POST':
+        f = request.form
+        droits = ','.join(request.form.getlist('droits'))
+        conn = get_db()
+        try:
+            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,droits) VALUES (?,?,?,?,?,?)',
+                (f['email'].strip().lower(), generate_password_hash(f.get('password','benevole2028')),
+                 f['nom'].strip(), f['prenom'].strip(), 'benevole', droits))
             uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.execute('INSERT INTO benevoles (user_id,telephone,tshirt,notes) VALUES (?,?,?,?)',
                 (uid, f.get('tel',''), f.get('tshirt','M'), f.get('notes','')))
@@ -547,11 +594,12 @@ def benevole_new():
 def benevole_edit(id):
     if not current_user.is_admin: abort(403)
     conn = get_db()
-    b = conn.execute('SELECT b.*,u.nom,u.prenom,u.email FROM benevoles b JOIN users u ON b.user_id=u.id WHERE b.id=?',(id,)).fetchone()
+    b = conn.execute('SELECT b.*,u.nom,u.prenom,u.email,u.droits FROM benevoles b JOIN users u ON b.user_id=u.id WHERE b.id=?',(id,)).fetchone()
     if not b: abort(404)
     if request.method == 'POST':
         f = request.form
-        conn.execute('UPDATE users SET nom=?,prenom=? WHERE id=?',(f['nom'],f['prenom'],b['user_id']))
+        droits = ','.join(request.form.getlist('droits'))
+        conn.execute('UPDATE users SET nom=?,prenom=?,droits=? WHERE id=?',(f['nom'],f['prenom'],droits,b['user_id']))
         conn.execute('UPDATE benevoles SET telephone=?,tshirt=?,notes=? WHERE id=?',
             (f.get('tel',''),f.get('tshirt','M'),f.get('notes',''),id))
         conn.commit(); conn.close()
@@ -559,20 +607,6 @@ def benevole_edit(id):
         return redirect(url_for('benevoles_list'))
     conn.close()
     return render_template('benevole_form.html', action='edit', item=b)
-
-@app.route('/benevoles/<int:id>/delete', methods=['POST'])
-@login_required
-def benevole_delete(id):
-    if not current_user.is_admin: return jsonify(error='Non autorisé'), 403
-    conn = get_db()
-    b = conn.execute('SELECT user_id FROM benevoles WHERE id=?',(id,)).fetchone()
-    if b:
-        conn.execute('DELETE FROM affectations WHERE benevole_id=?',(id,))
-        conn.execute('DELETE FROM benevoles WHERE id=?',(id,))
-        conn.execute('DELETE FROM users WHERE id=?',(b['user_id'],))
-        conn.commit()
-    conn.close()
-    return jsonify(success=True)
 
 def _mission_item(conn, m):
     aff = conn.execute('''
@@ -594,6 +628,11 @@ def _mission_item(conn, m):
     return {'m': m, 'aff': aff, 'manque': m['nb_places'] - len(aff), 'taches': taches}
 
 @app.route('/planning')
+@app.route('/participants')
+@login_required
+@require_droit('participants')
+def participants_list():
+    ...
 @login_required
 def planning():
     conn = get_db()
@@ -715,6 +754,11 @@ def programme_edit(id):
     return render_template('programme_form.html', item=item)
 
 @app.route('/programme/<int:id>/delete', methods=['POST'])
+@app.route('/participants')
+@login_required
+@require_droit('participants')
+def participants_list():
+    ...
 @login_required
 def programme_del(id):
     if not current_user.is_admin: abort(403)
@@ -726,6 +770,11 @@ def programme_del(id):
 
 # ── FORUM ─────────────────────────────────────────────────────────────────────
 @app.route('/forum')
+@app.route('/participants')
+@login_required
+@require_droit('participants')
+def participants_list():
+    ...
 @login_required
 def forum():
     conn = get_db()
@@ -848,6 +897,11 @@ def api_scan():
 
 # ── ADMIN ─────────────────────────────────────────────────────────────────────
 @app.route('/admin')
+@app.route('/participants')
+@login_required
+@require_droit('participants')
+def participants_list():
+    ...
 @login_required
 def admin():
     if not current_user.is_admin: abort(403)
