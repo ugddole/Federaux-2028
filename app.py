@@ -176,12 +176,8 @@ def init_db():
 
 def migrate_db():
     conn = get_db()
-    cols = [row['name'] for row in conn.execute("PRAGMA table_info(taches)").fetchall()]
-    if 'lien' not in cols:
-        conn.execute("ALTER TABLE taches ADD COLUMN lien TEXT DEFAULT ''")
-    conn.commit()
-    conn.close()
-    
+    c = conn.cursor()
+
     # Migrations
     try:
         c.execute("ALTER TABLE taches ADD COLUMN mission_id INTEGER DEFAULT NULL REFERENCES missions(id)")
