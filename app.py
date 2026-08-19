@@ -1671,17 +1671,17 @@ def taches_export():
                       mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ── RUN ───────────────────────────────────────────────────────────────────────
+init_db()
+migrate_db()
+
+if __name__ == '__main__':
     init_db()
-    migrate_db()
-    
-    if __name__ == '__main__':
-        init_db()
-        print("\n" + "="*52)
-        print("   DOLE 2028 — Application de Gestion FSCF")
-        print("="*52)
-        print("   Navigateur  : http://localhost:5000")
-        print("   Admin       : admin@dole2028.fr")
-        print("   Mot de passe: admin2028")
-        print("="*52 + "\n")
-        app.run(debug=True, host='0.0.0.0', port=5000)
+    print("\n" + "="*52)
+    print("   DOLE 2028 — Application de Gestion FSCF")
+    print("="*52)
+    print("   Navigateur  : http://localhost:5000")
+    print("   Admin       : admin@dole2028.fr")
+    print("   Mot de passe: admin2028")
+    print("="*52 + "\n")
+    app.run(debug=True, host='0.0.0.0', port=5000)
  
