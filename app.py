@@ -1715,7 +1715,6 @@ def taches_export():
         LEFT JOIN users u ON t.responsable_id = u.id
         ORDER BY t.categorie, t.created_at
     ''').fetchall()
-    conn.close()
 
     headers = ['N°', 'Catégorie', 'Titre', 'Délai', 'Échéance', 'Priorité',
                'Responsable', 'Statut', 'Lien', 'Notes']
@@ -1724,7 +1723,7 @@ def taches_export():
     for i, t in enumerate(taches, start=1):
         responsable = f"{t['resp_prenom']} {t['resp_nom']}" if t['resp_nom'] else ''
         rows.append({
-            'n': i,
+            'n': str(i),
             'categorie': t['categorie'] or '',
             'titre': t['titre'],
             'delai': t['delai_libelle'] or '',
@@ -1735,6 +1734,25 @@ def taches_export():
             'lien': t['lien'] or '',
             'notes': t['description'] or '',
         })
+
+        sous_taches = conn.execute(
+            'SELECT * FROM sous_taches WHERE tache_id=? ORDER BY created_at', (t['id'],)
+        ).fetchall()
+        for j, st in enumerate(sous_taches, start=1):
+            rows.append({
+                'n': f'{i}.{j}',
+                'categorie': t['categorie'] or '',
+                'titre': f"      ↳ {st['titre']}",
+                'delai': '',
+                'echeance': '',
+                'priorite': '',
+                'responsable': '',
+                'statut': 'Fait' if st['statut'] == 'fait' else 'À faire',
+                'lien': st['lien'] or '',
+                'notes': '',
+            })
+
+    conn.close()
 
     wb = build_export_workbook(
         export_name="Tâches",
