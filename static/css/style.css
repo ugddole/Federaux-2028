@@ -78,16 +78,11 @@ code{
   border-bottom:1px solid var(--border);
 }
 
-.brand-logo{
-  width:44px; height:44px;
-  border-radius:12px;
-  background:linear-gradient(135deg, var(--pink), var(--purple));
-  color:#fff;
-  display:flex; align-items:center; justify-content:center;
-  font-family:'Montserrat', sans-serif;
-  font-weight:800;
-  font-size:.85rem;
-  flex-shrink:0;
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
 }
 
 .brand-title{
