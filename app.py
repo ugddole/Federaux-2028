@@ -619,6 +619,7 @@ def _mission_item(conn, m):
 
 @app.route('/planning')
 @login_required
+@require_droit('organisation')
 def planning():
     conn = get_db()
     parent_missions = conn.execute(
@@ -698,6 +699,7 @@ def api_affecter():
 # ── PROGRAMME ─────────────────────────────────────────────────────────────────
 @app.route('/programme')
 @login_required
+@require_droit('competition')
 def programme():
     conn = get_db()
     items = conn.execute('SELECT * FROM programme ORDER BY ordre,heure_debut').fetchall()
@@ -751,6 +753,7 @@ def programme_del(id):
 # ── FORUM ─────────────────────────────────────────────────────────────────────
 @app.route('/forum')
 @login_required
+@require_droit('communication')
 def forum():
     conn = get_db()
     cats = conn.execute('''
@@ -873,6 +876,7 @@ def api_scan():
 # ── ADMIN ─────────────────────────────────────────────────────────────────────
 @app.route('/admin')
 @login_required
+@require_droit('administration')
 def admin():
     if not current_user.is_admin: abort(403)
     conn = get_db()
