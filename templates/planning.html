@@ -6,9 +6,10 @@
 <a href="{{ url_for('mission_new') }}" class="btn-fscf"><i class="bi bi-plus-lg me-1"></i>Nouvelle mission</a>
 {% endif %}
 {% if current_user.is_staff %}
-<a href="{{ url_for('taches_export') }}" class="btn-fscf" style="background:#0066CC;">
-  <i class="bi bi-download me-1"></i>Export tâches
+<a href="{{ url_for('planning_export') }}" class="btn-fscf" style="background:#0066CC;">
+  <i class="bi bi-download me-1"></i>Export planning
 </a>
+{% endif %}
 <a href="{{ url_for('taches_import') }}" class="btn-fscf" style="background:#009944;">
   <i class="bi bi-upload me-1"></i>Import tâches
 </a>
