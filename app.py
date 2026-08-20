@@ -1309,6 +1309,23 @@ def sous_tache_new(id):
         conn.commit()
     conn.close()
     return redirect(url_for('tache_detail', id=id))
+    
+@app.route('/sous-tache/<int:id>/toggle', methods=['POST'])
+@login_required
+def sous_tache_toggle(id):
+    if not current_user.is_staff: abort(403)
+    conn = get_db()
+    st = conn.execute('''SELECT st.*, t.categorie FROM sous_taches st
+        JOIN taches t ON st.tache_id = t.id WHERE st.id=?''', (id,)).fetchone()
+    if not st: conn.close(); abort(404)
+    if not can_edit(st['categorie']):
+        conn.close(); abort(403)
+    new_statut = 'todo' if st['statut'] == 'fait' else 'fait'
+    conn.execute('UPDATE sous_taches SET statut=? WHERE id=?', (new_statut, id))
+    conn.commit()
+    tache_id = st['tache_id']
+    conn.close()
+    return redirect(url_for('tache_detail', id=tache_id))
 
 @app.route('/sous-tache/<int:id>/edit', methods=['POST'])
 @login_required
