@@ -221,6 +221,11 @@ def migrate_db():
         conn.commit()
     except Exception:
         pass
+    try:
+         c.execute("ALTER TABLE sous_taches ADD COLUMN lien TEXT DEFAULT ''")
+         conn.commit()
+    except Exception:
+        pass
 
     if not c.execute("SELECT id FROM users WHERE email='admin@dole2028.fr'").fetchone():
         c.execute("INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)",
@@ -1298,15 +1303,16 @@ def sous_tache_new(id):
     if not can_edit(t['categorie']):
         conn.close(); abort(403)
     titre = request.form.get('titre','').strip()
+    lien = request.form.get('lien','').strip()
     if titre:
-        conn.execute('INSERT INTO sous_taches (tache_id,titre) VALUES (?,?)', (id, titre))
+        conn.execute('INSERT INTO sous_taches (tache_id,titre,lien) VALUES (?,?,?)', (id, titre, lien))
         conn.commit()
     conn.close()
     return redirect(url_for('tache_detail', id=id))
 
-@app.route('/sous-tache/<int:id>/toggle', methods=['POST'])
+@app.route('/sous-tache/<int:id>/edit', methods=['POST'])
 @login_required
-def sous_tache_toggle(id):
+def sous_tache_edit(id):
     if not current_user.is_staff: abort(403)
     conn = get_db()
     st = conn.execute('''SELECT st.*, t.categorie FROM sous_taches st
@@ -1314,10 +1320,12 @@ def sous_tache_toggle(id):
     if not st: conn.close(); abort(404)
     if not can_edit(st['categorie']):
         conn.close(); abort(403)
-    new_statut = 'todo' if st['statut'] == 'fait' else 'fait'
-    conn.execute('UPDATE sous_taches SET statut=? WHERE id=?', (new_statut, id))
-    conn.commit()
+    titre = request.form.get('titre','').strip()
+    lien = request.form.get('lien','').strip()
     tache_id = st['tache_id']
+    if titre:
+        conn.execute('UPDATE sous_taches SET titre=?, lien=? WHERE id=?', (titre, lien, id))
+        conn.commit()
     conn.close()
     return redirect(url_for('tache_detail', id=tache_id))
 
