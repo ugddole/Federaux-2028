@@ -226,6 +226,11 @@ def migrate_db():
          conn.commit()
     except Exception:
         pass
+    try:
+        c.execute("ALTER TABLE sous_taches ADD COLUMN responsable_id INTEGER DEFAULT NULL REFERENCES users(id)")
+        conn.commit()
+    except Exception:
+        pass
 
     if not c.execute("SELECT id FROM users WHERE email='admin@dole2028.fr'").fetchone():
         c.execute("INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)",
@@ -1196,13 +1201,21 @@ def taches_list():
     conn.close()
     return render_template('taches_list.html', by_cat=by_cat)
 
+def _get_responsables_taches(conn):
+    return conn.execute('''
+        SELECT * FROM users
+        WHERE role='benevole'
+        AND (droits LIKE '%communication%' OR droits LIKE '%organisation%' OR droits LIKE '%administration%')
+        ORDER BY nom, prenom
+    ''').fetchall()
+
 @app.route('/taches/new', methods=['GET','POST'])
 @login_required
 def tache_new():
     if not current_user.is_staff: abort(403)
     conn = get_db()
     missions = conn.execute('SELECT * FROM missions ORDER BY jour, heure_debut').fetchall()
-    responsables = conn.execute("SELECT * FROM users WHERE role IN ('admin','responsable') ORDER BY nom").fetchall()
+    responsables = _get_responsables_taches(conn)
     editable_cats = _editable_categories(conn)
     if request.method == 'POST':
         f = request.form
@@ -1237,14 +1250,18 @@ def tache_detail(id):
         SELECT t.*, u.nom resp_nom, u.prenom resp_prenom
         FROM taches t LEFT JOIN users u ON t.responsable_id = u.id WHERE t.id=?''', (id,)).fetchone()
     if not t: abort(404)
-    sous_taches = conn.execute('SELECT * FROM sous_taches WHERE tache_id=? ORDER BY created_at', (id,)).fetchall()
+    sous_taches = conn.execute('''
+        SELECT st.*, u.nom resp_nom, u.prenom resp_prenom
+        FROM sous_taches st LEFT JOIN users u ON st.responsable_id = u.id
+        WHERE st.tache_id=? ORDER BY st.created_at''', (id,)).fetchall()
     mission = conn.execute('SELECT * FROM missions WHERE id=?', (t['mission_id'],)).fetchone() if t['mission_id'] else None
+    responsables = _get_responsables_taches(conn)
     conn.close()
     total = len(sous_taches)
     done  = sum(1 for s in sous_taches if s['statut'] == 'fait')
     editable = can_edit(t['categorie'])
     return render_template('tache_detail.html', t=t, sous_taches=sous_taches, total=total, done=done,
-                           mission=mission, editable=editable)
+                           mission=mission, editable=editable, responsables=responsables)
 
 @app.route('/taches/<int:id>/edit', methods=['GET','POST'])
 @login_required
@@ -1256,7 +1273,7 @@ def tache_edit(id):
     if not can_edit(t['categorie']):
         conn.close(); abort(403)
     missions = conn.execute('SELECT * FROM missions ORDER BY jour, heure_debut').fetchall()
-    responsables = conn.execute("SELECT * FROM users WHERE role IN ('admin','responsable') ORDER BY nom").fetchall()
+    responsables = _get_responsables_taches(conn)
     editable_cats = _editable_categories(conn)
     if request.method == 'POST':
         f = request.form
@@ -1304,8 +1321,9 @@ def sous_tache_new(id):
         conn.close(); abort(403)
     titre = request.form.get('titre','').strip()
     lien = request.form.get('lien','').strip()
+    rid = request.form.get('responsable_id') or None
     if titre:
-        conn.execute('INSERT INTO sous_taches (tache_id,titre,lien) VALUES (?,?,?)', (id, titre, lien))
+        conn.execute('INSERT INTO sous_taches (tache_id,titre,lien,responsable_id) VALUES (?,?,?,?)', (id, titre, lien, rid))
         conn.commit()
     conn.close()
     return redirect(url_for('tache_detail', id=id))
@@ -1339,9 +1357,10 @@ def sous_tache_edit(id):
         conn.close(); abort(403)
     titre = request.form.get('titre','').strip()
     lien = request.form.get('lien','').strip()
+    rid = request.form.get('responsable_id') or None
     tache_id = st['tache_id']
     if titre:
-        conn.execute('UPDATE sous_taches SET titre=?, lien=? WHERE id=?', (titre, lien, id))
+        conn.execute('UPDATE sous_taches SET titre=?, lien=?, responsable_id=? WHERE id=?', (titre, lien, rid, id))
         conn.commit()
     conn.close()
     return redirect(url_for('tache_detail', id=tache_id))
