@@ -419,15 +419,31 @@ def logout():
 @login_required
 def dashboard():
     conn = get_db()
+    
+    # Stats participants par catégorie
+    cats = conn.execute('SELECT categorie, COUNT(*) as cnt FROM participants GROUP BY categorie').fetchall()
+    by_category = {c['categorie']: c['cnt'] for c in cats}
+    total_participants = conn.execute('SELECT COUNT(*) FROM participants').fetchone()[0]
+    
+    # Tâches urgentes (échéance dans le mois)
+    taches_urgentes = conn.execute('''
+        SELECT COUNT(*) FROM taches 
+        WHERE statut != 'termine' AND echeance IS NOT NULL 
+        AND date(echeance) <= date('now', '+30 days')
+    ''').fetchone()[0]
+    
     stats = {
-        'participants': conn.execute('SELECT COUNT(*) FROM participants').fetchone()[0],
-        'benevoles':    conn.execute('SELECT COUNT(*) FROM benevoles').fetchone()[0],
-        'missions':     conn.execute('SELECT COUNT(*) FROM missions').fetchone()[0],
-        'questions':    conn.execute('SELECT COUNT(*) FROM forum_questions').fetchone()[0],
-        'badges':       conn.execute('SELECT COUNT(*) FROM participants WHERE badge_generated=1').fetchone()[0],
-        'scans':        conn.execute("SELECT COUNT(*) FROM access_logs WHERE date(timestamp)=date('now')").fetchone()[0],
-        'taches':       conn.execute("SELECT COUNT(*) FROM taches WHERE statut != 'termine'").fetchone()[0],
+        'total_participants': total_participants,
+        'by_category': by_category,
+        'benevoles': conn.execute('SELECT COUNT(*) FROM benevoles').fetchone()[0],
+        'missions': conn.execute('SELECT COUNT(*) FROM missions').fetchone()[0],
+        'questions': conn.execute('SELECT COUNT(*) FROM forum_questions').fetchone()[0],
+        'badges': conn.execute('SELECT COUNT(*) FROM participants WHERE badge_generated=1').fetchone()[0],
+        'scans': conn.execute("SELECT COUNT(*) FROM access_logs WHERE date(timestamp)=date('now')").fetchone()[0],
+        'taches': conn.execute("SELECT COUNT(*) FROM taches WHERE statut != 'termine'").fetchone()[0],
+        'taches_urgentes': taches_urgentes,
     }
+    
     logs = conn.execute('''
         SELECT al.timestamp, al.site, al.statut, u.nom, u.prenom, p.categorie, p.numero_dossard
         FROM access_logs al
