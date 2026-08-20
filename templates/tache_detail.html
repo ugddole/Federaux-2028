@@ -24,8 +24,6 @@
 {% endif %}
 {% endblock %}
 
-{% endblock %}
-
 {% block content %}
 <div class="row g-3">
 
@@ -232,4 +230,13 @@
   </div>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleEditSt(id) {
+  document.getElementById('st-view-' + id).querySelector('.d-flex').classList.toggle('d-none');
+  document.getElementById('st-edit-' + id).classList.toggle('d-none');
+}
+</script>
 {% endblock %}
