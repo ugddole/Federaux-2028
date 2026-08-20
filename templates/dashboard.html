@@ -50,6 +50,12 @@
       <div><div class="stat-number">{{ stats.scans }}</div><div class="stat-label">Scans auj.</div></div>
     </div>
   </div>
+  <div class="col-md-4 col-lg-2">
+    <div class="stat-card navy">
+      <div class="stat-icon">✅</div>
+      <div><div class="stat-number">{{ stats.taches }}</div><div class="stat-label">Tâches</div></div>
+    </div>
+  </div>
 </div>
 
 <div class="row g-4">
@@ -69,6 +75,9 @@
         </a>
         <a href="{{ url_for('forum_ask') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#009944;color:#009944;">
           <i class="bi bi-chat-dots me-2"></i>Poser une question
+        </a>
+        <a href="{{ url_for('tache_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#003366;color:#003366;">
+          <i class="bi bi-check2-square me-2"></i>Nouvelle tâche
         </a>
       </div>
     </div>
