@@ -45,9 +45,11 @@
     <a href="{{ url_for('benevoles_list') }}" class="nav-link {% if request.endpoint=='benevoles_list' or request.endpoint=='benevole_new' or request.endpoint=='benevole_edit' %}active{% endif %}">
       <i class="bi bi-person-heart"></i> Liste bénévoles
     </a>
+    {% if current_user.has_droit('organisation') %}
     <a href="{{ url_for('planning') }}" class="nav-link {% if request.endpoint=='planning' %}active{% endif %}">
       <i class="bi bi-calendar3-week"></i> Planning missions
     </a>
+    {% endif %}
 
 {% if current_user.has_droit('competition') %}
     <div class="nav-section mt-2">Compétition</div>
