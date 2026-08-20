@@ -14,12 +14,39 @@
 <!-- SIDEBAR -->
 <div class="sidebar">
   <div class="sidebar-brand">
-    <div class="brand-logo">D28</div>
+    <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="Logo UGD" class="brand-logo">
     <div>
       <div class="brand-title">DOLE 2028</div>
-      <div class="brand-sub">FSCF — Gym Artistique</div>
+      <div class="brand-sub">UGD-FSCF — Gym Artistique</div>
     </div>
   </div>
+
+Comme brand-logo était une <div> avec probablement un style CSS (fond coloré, dimensions fixes, centrage du texte "D28"), il faut ajuster le CSS pour que ça marche bien avec une image. Regarde dans ton fichier CSS (probablement static/style.css ou dans un <style> du template) la règle .brand-logo — elle ressemble sûrement à quelque chose comme :
+
+css
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  background: ...;
+  border-radius: ...;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: white;
+}
+
+Remplace-la par :
+
+css
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+Envoie-moi le CSS actuel de .brand-logo si tu veux que j'ajuste précisément plutôt que de deviner.
 
   <nav class="sidebar-nav">
     <div class="nav-section">Tableau de bord</div>
