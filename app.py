@@ -1676,13 +1676,13 @@ def budget_import_confirm():
 # ── EXPORT TÂCHES ────────────────────────────────────────────────────────────
 STATUT_LABELS = {'todo': 'À faire', 'en_cours': 'En cours', 'termine': 'Terminé'}
 
+from excel_export import build_export_workbook  # à ajouter en haut du fichier avec tes autres imports
+
 @app.route('/taches/export')
 @login_required
 def taches_export():
     if not current_user.is_staff:
         abort(403)
-    import openpyxl
-    from openpyxl.styles import Font
     conn = get_db()
     taches = conn.execute('''
         SELECT t.*, u.nom resp_nom, u.prenom resp_prenom
@@ -1691,25 +1691,39 @@ def taches_export():
         ORDER BY t.categorie, t.created_at
     ''').fetchall()
     conn.close()
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = 'Taches'
-    ws.append(['Export tâches — Dole 2028'])
-    ws.append(['N°', 'Catégorie', 'Titre', 'Délai', 'Échéance', 'Priorité', 'Responsable', 'Statut', 'Lien', 'Notes'])
-    for cell in ws[2]:
-        cell.font = Font(bold=True)
+
+    headers = ['N°', 'Catégorie', 'Titre', 'Délai', 'Échéance', 'Priorité',
+               'Responsable', 'Statut', 'Lien', 'Notes']
+
+    rows = []
     for i, t in enumerate(taches, start=1):
         responsable = f"{t['resp_prenom']} {t['resp_nom']}" if t['resp_nom'] else ''
-        ws.append([i, t['categorie'] or '', t['titre'], t['delai_libelle'] or '', t['echeance'] or '',
-                   t['priorite'] or '', responsable, STATUT_LABELS.get(t['statut'], t['statut']),
-                   t['lien'] or '', t['description'] or ''])
-    for col, width in zip('ABCDEFGHIJ', [5, 20, 35, 15, 12, 12, 20, 12, 30, 30]):
-        ws.column_dimensions[col].width = width
+        rows.append({
+            'n': i,
+            'categorie': t['categorie'] or '',
+            'titre': t['titre'],
+            'delai': t['delai_libelle'] or '',
+            'echeance': t['echeance'] or '',
+            'priorite': t['priorite'] or '',
+            'responsable': responsable,
+            'statut': STATUT_LABELS.get(t['statut'], t['statut']),
+            'lien': t['lien'] or '',
+            'notes': t['description'] or '',
+        })
+
+    wb = build_export_workbook(
+        export_name="Tâches",
+        headers=headers,
+        rows=rows,
+        category_field="categorie",
+        priority_field="priorite",
+    )
+
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True,
-                      download_name='taches_dole2028.xlsx',
+                      download_name=f'taches_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
                       mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ── RUN ───────────────────────────────────────────────────────────────────────
