@@ -7,6 +7,7 @@ from io import BytesIO, StringIO
 import base64
 from fpdf import FPDF
 from functools import wraps
+from excel_export import build_export_workbook
 
 app = Flask(__name__)
 app.secret_key = 'dole2028-fscf-secret-key'
