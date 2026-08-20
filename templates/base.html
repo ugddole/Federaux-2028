@@ -40,12 +40,15 @@
       <i class="bi bi-people-fill"></i> Gymnastes
     </a>
     {% endif %}
-
+    
+{% if current_user.has_droit('organisation') or current_user.droits|length > 1 %}
     <div class="nav-section mt-2">Bénévoles</div>
     <a href="{{ url_for('benevoles_list') }}" class="nav-link {% if request.endpoint=='benevoles_list' or request.endpoint=='benevole_new' or request.endpoint=='benevole_edit' %}active{% endif %}">
       <i class="bi bi-person-heart"></i> Liste bénévoles
     </a>
-    {% if current_user.has_droit('organisation') %}
+    {% endif %}
+    
+{% if current_user.has_droit('organisation') %}
     <a href="{{ url_for('planning') }}" class="nav-link {% if request.endpoint=='planning' %}active{% endif %}">
       <i class="bi bi-calendar3-week"></i> Planning missions
     </a>
@@ -65,12 +68,14 @@
     </a>
     {% endif %}
 
+{% if current_user.has_droit('organisation') %}
     <div class="nav-section mt-2">Contrôle accès</div>
     <a href="{{ url_for('scanner') }}" class="nav-link {% if request.endpoint=='scanner' %}active{% endif %}">
       <i class="bi bi-qr-code-scan"></i> Scanner QR
     </a>
-
-    {% if current_user.has_droit('organisation') %}
+    {% endif %}
+ 
+{% if current_user.has_droit('organisation') %}
     <div class="nav-section mt-2">Organisation</div>
     <a href="{{ url_for('taches_list') }}" class="nav-link {% if 'tache' in request.endpoint %}active{% endif %}">
       <i class="bi bi-check2-square"></i> Tâches
