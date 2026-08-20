@@ -426,6 +426,7 @@ def dashboard():
         'questions':    conn.execute('SELECT COUNT(*) FROM forum_questions').fetchone()[0],
         'badges':       conn.execute('SELECT COUNT(*) FROM participants WHERE badge_generated=1').fetchone()[0],
         'scans':        conn.execute("SELECT COUNT(*) FROM access_logs WHERE date(timestamp)=date('now')").fetchone()[0],
+        'taches':       conn.execute("SELECT COUNT(*) FROM taches WHERE statut != 'termine'").fetchone()[0],
     }
     logs = conn.execute('''
         SELECT al.timestamp, al.site, al.statut, u.nom, u.prenom, p.categorie, p.numero_dossard
