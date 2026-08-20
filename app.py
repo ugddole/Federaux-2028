@@ -1726,6 +1726,60 @@ def taches_export():
                       download_name=f'taches_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
                       mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+# ── EXPORT PLANNING ───────────────────────────────────────────────────────────
+@app.route('/planning/export')
+@login_required
+def planning_export():
+    if not current_user.is_staff:
+        abort(403)
+    conn = get_db()
+    missions = conn.execute('''
+        SELECT m.*, pm.nom parent_nom
+        FROM missions m
+        LEFT JOIN missions pm ON m.parent_id = pm.id
+        ORDER BY m.jour, m.heure_debut
+    ''').fetchall()
+
+    headers = ['Jour', 'Mission', 'Site', 'Début', 'Fin', 'Places',
+               'Affectés', 'Manque', 'Bénévoles', 'Sous-mission de']
+
+    rows = []
+    for m in missions:
+        aff = conn.execute('''
+            SELECT u.nom, u.prenom FROM affectations a
+            JOIN benevoles b ON a.benevole_id = b.id
+            JOIN users u ON b.user_id = u.id
+            WHERE a.mission_id=? ORDER BY u.nom
+        ''', (m['id'],)).fetchall()
+        noms = ', '.join(f"{a['prenom']} {a['nom']}" for a in aff)
+        rows.append({
+            'jour': m['jour'],
+            'mission': m['nom'],
+            'site': m['site'],
+            'debut': m['heure_debut'],
+            'fin': m['heure_fin'],
+            'places': m['nb_places'],
+            'affectes': len(aff),
+            'manque': max(m['nb_places'] - len(aff), 0),
+            'benevoles': noms,
+            'parent': m['parent_nom'] or '',
+        })
+    conn.close()
+
+    wb = build_export_workbook(
+        export_name="Planning bénévoles",
+        headers=headers,
+        rows=rows,
+        category_field="jour",
+    )
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                      download_name=f'planning_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 # ── RUN ───────────────────────────────────────────────────────────────────────
 init_db()
 migrate_db()
