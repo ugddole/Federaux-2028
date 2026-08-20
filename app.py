@@ -1326,7 +1326,7 @@ def sous_tache_toggle(id):
     tache_id = st['tache_id']
     conn.close()
     return redirect(url_for('tache_detail', id=tache_id))
-
+    
 @app.route('/sous-tache/<int:id>/edit', methods=['POST'])
 @login_required
 def sous_tache_edit(id):
