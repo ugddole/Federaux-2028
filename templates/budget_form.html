@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
-{% block title %}{{ 'Modifier la ligne' if action == 'edit' else 'Nouvelle ligne de budget' }}{% endblock %}{% block title %}{{ 'Modifier la ligne' if action == 'edit' else 'Nouvelle ligne de budget' }}{% endblock %}
+{% block title %}{{ 'Modifier la ligne' if action == 'edit' else 'Nouvelle ligne de budget' }}{% endblock %}
 {% block page_title %}
-<i class="bi bi-cash-coin me-2"></i>{{ 'Modifier la ligne' if action == 'edit' else 'Nouvelle ligne de budget' }}<i class="bi bi-cash-coin me-2"></i>{{ 'Modifier la ligne' if action == 'edit' else 'Nouvelle ligne de budget' }}
+<i class="bi bi-cash-coin me-2"></i>{{ 'Modifier la ligne' if action == 'edit' else 'Nouvelle ligne de budget' }}
 {% endblock %}
 
 {% block content %}
@@ -77,7 +77,7 @@
         <button type="submit" class="btn-fscf px-4 py-2">
           <i class="bi bi-check-lg me-1"></i>{{ 'Mettre à jour' if action == 'edit' else 'Créer la ligne' }}
         </button>
-        <a href="{{ url_for('budget_list') }}" class="btn btn-outline-secondary px-4 py-2">Annuler</a>        <a href="{{ url_for('budget_list') }}" class="btn btn-outline-secondary px-4 py-2">Annuler</a>
+        <a href="{{ url_for('budget_list') }}" class="btn btn-outline-secondary px-4 py-2">Annuler</a>
       </div>
 
     </form>
