@@ -582,8 +582,16 @@ def generate_badge(p_id):
     if not p:
         return None
 
+    token = p['qr_token']
+    if not token:
+        # sécurité : génère un token à la volée si jamais il manque (anciens comptes / tests)
+        token = str(uuid.uuid4())
+        conn = get_db()
+        conn.execute('UPDATE participants SET qr_token=? WHERE id=?', (token, p_id))
+        conn.commit(); conn.close()
+
     qr_path = os.path.join(QR_DIR, f'qr_{p_id}.png')
-    _make_qr(p['qr_token'], qr_path)
+    _make_qr(token, qr_path)
 
     pdf = FPDF(orientation='P', unit='mm', format='A6')
     pdf.set_auto_page_break(False)
@@ -617,8 +625,13 @@ def generate_badges_participants_all(only_missing=True):
     pdf.set_auto_page_break(False)
     ids = []
     for p in items:
+        token = p['qr_token']
+        if not token:
+            token = str(uuid.uuid4())
+            conn.execute('UPDATE participants SET qr_token=? WHERE id=?', (token, p['id']))
+            conn.commit()
         qr_path = os.path.join(QR_DIR, f'qr_{p["id"]}.png')
-        _make_qr(p['qr_token'], qr_path)
+        _make_qr(token, qr_path)
         pdf.add_page()
         options = [
             ('S.MIDI', bool(p['repas_samedi_midi']), (226, 0, 122)),
@@ -643,8 +656,15 @@ def generate_badge_juge(j_id):
     if not j:
         return None
 
+    token = j['qr_token']
+    if not token:
+        token = str(uuid.uuid4())
+        conn = get_db()
+        conn.execute('UPDATE juges SET qr_token=? WHERE id=?', (token, j_id))
+        conn.commit(); conn.close()
+
     qr_path = os.path.join(QR_DIR, f'qr_juge_{j_id}.png')
-    _make_qr(j['qr_token'], qr_path)
+    _make_qr(token, qr_path)
 
     pdf = FPDF(orientation='P', unit='mm', format='A6')
     pdf.set_auto_page_break(False)
@@ -678,8 +698,13 @@ def generate_badges_juges_all(only_missing=True):
     pdf.set_auto_page_break(False)
     ids = []
     for j in items:
+        token = j['qr_token']
+        if not token:
+            token = str(uuid.uuid4())
+            conn.execute('UPDATE juges SET qr_token=? WHERE id=?', (token, j['id']))
+            conn.commit()
         qr_path = os.path.join(QR_DIR, f'qr_juge_{j["id"]}.png')
-        _make_qr(j['qr_token'], qr_path)
+        _make_qr(token, qr_path)
         pdf.add_page()
         options = [
             ('S.MIDI', bool(j['repas_samedi_midi']), (226, 0, 122)),
