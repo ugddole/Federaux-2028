@@ -64,21 +64,31 @@
     <div class="fscf-card">
       <div class="fscf-card-header"><i class="bi bi-lightning-fill me-2"></i>Accès rapides</div>
       <div class="fscf-card-body d-grid gap-2">
+        {% if current_user.has_droit('competition') %}
         <a href="{{ url_for('participant_new') }}" class="btn-fscf text-center text-decoration-none py-2">
           <i class="bi bi-person-plus-fill me-2"></i>Nouveau participant
         </a>
+        {% endif %}
+        {% if current_user.has_droit('organisation') %}
         <a href="{{ url_for('benevole_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;">
           <i class="bi bi-person-heart me-2"></i>Nouveau bénévole
         </a>
+        {% endif %}
+        {% if current_user.has_droit('competition') or current_user.has_droit('organisation') %}
         <a href="{{ url_for('scanner') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#0066CC;color:#0066CC;">
           <i class="bi bi-qr-code-scan me-2"></i>Scanner un badge
         </a>
+        {% endif %}
+        {% if current_user.has_droit('participants') or current_user.has_droit('competition') or current_user.has_droit('communication') or current_user.has_droit('organisation') %}
         <a href="{{ url_for('forum_ask') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#009944;color:#009944;">
           <i class="bi bi-chat-dots me-2"></i>Poser une question
         </a>
+        {% endif %}
+        {% if current_user.has_droit('communication') or current_user.has_droit('organisation') %}
         <a href="{{ url_for('tache_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#003366;color:#003366;">
           <i class="bi bi-check2-square me-2"></i>Nouvelle tâche
         </a>
+        {% endif %}
       </div>
     </div>
   </div>
