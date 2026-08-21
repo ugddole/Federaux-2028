@@ -74,6 +74,7 @@ def init_db():
             qr_token TEXT UNIQUE,
             badge_generated INTEGER DEFAULT 0,
             notes TEXT DEFAULT '',
+            telephone TEXT DEFAULT '',
             repas_samedi_midi INTEGER DEFAULT 0,
             repas_samedi_soir INTEGER DEFAULT 0,
             soiree_juges INTEGER DEFAULT 0,
@@ -260,6 +261,16 @@ def migrate_db():
             pass
     try:
         c.execute("ALTER TABLE access_logs ADD COLUMN juge_id INTEGER DEFAULT NULL")
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE juges ADD COLUMN telephone TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE participants ADD COLUMN telephone TEXT DEFAULT ''")
         conn.commit()
     except Exception:
         pass
@@ -692,10 +703,10 @@ def participant_new():
             count = conn.execute('SELECT COUNT(*) FROM participants').fetchone()[0]
             dossard = f.get('dossard','').strip() or f'D{2028}{count+1:04d}'
             conn.execute('''INSERT INTO participants
-                (user_id,club,region,categorie,numero_dossard,qr_token,notes,
+                (user_id,club,region,categorie,numero_dossard,qr_token,notes,telephone,
                  repas_samedi_midi,repas_samedi_soir,gala,collation_dimanche_midi)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
-                (uid, f['club'].strip(), f.get('region','').strip(), f['categorie'].strip(), dossard, token, f.get('notes',''),
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
+                (uid, f['club'].strip(), f.get('region','').strip(), f['categorie'].strip(), dossard, token, f.get('notes',''), f.get('telephone','').strip(),
                  1 if f.get('repas_samedi_midi') else 0,
                  1 if f.get('repas_samedi_soir') else 0,
                  1 if f.get('gala') else 0,
@@ -733,9 +744,9 @@ def participant_edit(id):
     if request.method == 'POST':
         f = request.form
         conn.execute('UPDATE users SET nom=?,prenom=? WHERE id=?',(f['nom'],f['prenom'],p['user_id']))
-        conn.execute('''UPDATE participants SET club=?,region=?,categorie=?,numero_dossard=?,notes=?,
+        conn.execute('''UPDATE participants SET club=?,region=?,categorie=?,numero_dossard=?,notes=?,telephone=?,
                         repas_samedi_midi=?,repas_samedi_soir=?,gala=?,collation_dimanche_midi=? WHERE id=?''',
-            (f['club'],f.get('region',''),f['categorie'],f['dossard'],f.get('notes',''),
+            (f['club'],f.get('region',''),f['categorie'],f['dossard'],f.get('notes',''),f.get('telephone','').strip(),
              1 if f.get('repas_samedi_midi') else 0,
              1 if f.get('repas_samedi_soir') else 0,
              1 if f.get('gala') else 0,
@@ -810,10 +821,10 @@ def juge_new():
             count = conn.execute('SELECT COUNT(*) FROM juges').fetchone()[0]
             dossard = f.get('dossard','').strip() or f'J{2028}{count+1:04d}'
             conn.execute('''INSERT INTO juges
-                (user_id,club,region,categorie,numero_dossard,qr_token,notes,
+                (user_id,club,region,categorie,numero_dossard,qr_token,notes,telephone,
                  repas_samedi_midi,repas_samedi_soir,soiree_juges,collation_dimanche_midi)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
-                (uid, f['club'].strip(), f.get('region','').strip(), f['categorie'].strip(), dossard, token, f.get('notes',''),
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
+                (uid, f['club'].strip(), f.get('region','').strip(), f['categorie'].strip(), dossard, token, f.get('notes',''), f.get('telephone','').strip(),
                  1 if f.get('repas_samedi_midi') else 0,
                  1 if f.get('repas_samedi_soir') else 0,
                  1 if f.get('soiree_juges') else 0,
@@ -852,9 +863,9 @@ def juge_edit(id):
     if request.method == 'POST':
         f = request.form
         conn.execute('UPDATE users SET nom=?,prenom=? WHERE id=?',(f['nom'],f['prenom'],j['user_id']))
-        conn.execute('''UPDATE juges SET club=?,region=?,categorie=?,numero_dossard=?,notes=?,
+        conn.execute('''UPDATE juges SET club=?,region=?,categorie=?,numero_dossard=?,notes=?,telephone=?,
                         repas_samedi_midi=?,repas_samedi_soir=?,soiree_juges=?,collation_dimanche_midi=? WHERE id=?''',
-            (f['club'],f.get('region',''),f['categorie'],f['dossard'],f.get('notes',''),
+            (f['club'],f.get('region',''),f['categorie'],f['dossard'],f.get('notes',''),f.get('telephone','').strip(),
              1 if f.get('repas_samedi_midi') else 0,
              1 if f.get('repas_samedi_soir') else 0,
              1 if f.get('soiree_juges') else 0,
