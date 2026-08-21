@@ -2,64 +2,67 @@
 {% block title %}Juges{% endblock %}
 {% block page_title %}<i class="bi bi-award-fill me-2"></i>Juges ({{ items|length }}){% endblock %}
 {% block topbar_actions %}
+{% if current_user.is_admin %}
+<a href="{{ url_for('juges_export') }}" class="btn-fscf-outline me-2" title="Exporter" style="border-color:var(--purple);color:var(--purple);"><i class="bi bi-download me-1"></i>Export</a>
+<a href="{{ url_for('juges_import') }}" class="btn-fscf-outline me-2" title="Importer" style="border-color:var(--purple);color:var(--purple);"><i class="bi bi-upload me-1"></i>Import</a>
+{% endif %}
 {% if current_user.is_admin or current_user.has_droit('juges') %}
 <a href="{{ url_for('juge_new') }}" class="btn-fscf" style="background:var(--purple);border-color:var(--purple);"><i class="bi bi-plus-lg me-1"></i>Ajouter</a>
 {% endif %}
 {% endblock %}
+
 {% block content %}
-<div class="fscf-card mb-3">
+<div class="fscf-card">
   <div class="fscf-card-body">
-    <form method="GET" class="row g-2 align-items-end">
+    <form method="GET" class="row g-2 mb-3">
       <div class="col-md-6">
-        <label class="form-label fw-semibold" style="font-size:12px;">Recherche</label>
-        <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Nom, prénom, club…">
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="🔍 Rechercher nom, club, dossard…">
       </div>
-      <div class="col-md-4">
-        <label class="form-label fw-semibold" style="font-size:12px;">Catégorie</label>
+      <div class="col-md-3">
         <select name="cat" class="form-select">
-          <option value="">Toutes</option>
-          {% for c in cats %}
-          <option value="{{ c }}" {% if c==cat %}selected{% endif %}>{{ c }}</option>
-          {% endfor %}
+          <option value="">Toutes catégories</option>
+          {% for c in cats %}<option value="{{ c }}" {% if cat==c %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn-fscf-outline w-100" style="border-color:var(--purple);color:var(--purple);">Filtrer</button>
+      <div class="col-auto">
+        <button type="submit" class="btn-fscf px-4 py-2" style="background:var(--purple);border-color:var(--purple);">Filtrer</button>
+        <a href="{{ url_for('juges_list') }}" class="btn btn-light ms-1">Effacer</a>
       </div>
     </form>
-  </div>
-</div>
 
-<div class="fscf-card">
-  <div class="fscf-card-body p-0">
     {% if items %}
     <div class="table-responsive">
-    <table class="fscf-table" style="min-width:760px;">
+    <table class="fscf-table" style="min-width:720px;">
       <thead><tr>
-        <th>Nom / Prénom</th><th>Email</th><th>Club</th><th>Catégorie</th><th>Dossard</th><th>Badge</th><th>Actions</th>
+        <th>Dossard</th><th>Nom / Prénom</th><th>Club</th><th>Catégorie</th><th>Badge</th><th>Actions</th>
       </tr></thead>
       <tbody>
       {% for j in items %}
       <tr>
-        <td><strong>{{ j.nom }} {{ j.prenom }}</strong></td>
-        <td style="font-size:12px;">{{ j.email }}</td>
-        <td>{{ j.club }}</td>
-        <td><span class="badge" style="background:var(--purple);">{{ j.categorie }}</span></td>
-        <td><code>{{ j.numero_dossard }}</code></td>
+        <td><code style="color:var(--purple);font-weight:700;">{{ j.numero_dossard }}</code></td>
+        <td>
+          <a href="{{ url_for('juge_detail', id=j.id) }}" class="text-decoration-none fw-bold" style="color:var(--navy);">
+            {{ j.nom }} {{ j.prenom }}
+          </a><br>
+          <small class="text-muted">{{ j.email }}</small>
+        </td>
+        <td>{{ j.club }}<br><small class="text-muted">{{ j.region }}</small></td>
+        <td><span class="role-badge role-participant">{{ j.categorie }}</span></td>
         <td>
           {% if j.badge_generated %}
-          <span class="badge bg-success">Généré</span>
+            <span class="badge bg-success">Généré</span>
           {% else %}
-          <span class="badge bg-secondary">Non généré</span>
+            <span class="badge bg-secondary">Non</span>
           {% endif %}
         </td>
         <td>
-          <a href="{{ url_for('juge_detail', id=j.id) }}" class="btn btn-sm btn-outline-secondary me-1"><i class="bi bi-eye"></i></a>
+          <a href="{{ url_for('juge_detail', id=j.id) }}" class="btn btn-sm btn-outline-secondary me-1" title="Détail"><i class="bi bi-eye"></i></a>
+          <a href="{{ url_for('juge_badge', id=j.id) }}" class="btn btn-sm btn-outline-danger me-1" title="Badge PDF"><i class="bi bi-download"></i></a>
           {% if current_user.is_admin or current_user.has_droit('juges') %}
-          <a href="{{ url_for('juge_edit', id=j.id) }}" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-pencil"></i></a>
+          <a href="{{ url_for('juge_edit', id=j.id) }}" class="btn btn-sm btn-outline-primary me-1" title="Modifier"><i class="bi bi-pencil"></i></a>
           {% endif %}
           {% if current_user.is_admin %}
-          <button class="btn btn-sm btn-outline-danger" onclick="deleteJuge({{ j.id }}, '{{ j.prenom }} {{ j.nom }}')"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm btn-outline-danger" title="Supprimer" onclick="deleteJuge({{ j.id }}, '{{ j.prenom }} {{ j.nom }}')"><i class="bi bi-trash"></i></button>
           {% endif %}
         </td>
       </tr>
@@ -70,18 +73,20 @@
     {% else %}
     <div class="text-center py-5 text-muted">
       <i class="bi bi-award fs-1 d-block mb-3"></i>
-      <p>Aucun juge enregistré.</p>
+      <p>Aucun juge trouvé.</p>
       {% if current_user.is_admin or current_user.has_droit('juges') %}<a href="{{ url_for('juge_new') }}" class="btn-fscf" style="background:var(--purple);border-color:var(--purple);">Ajouter le premier juge</a>{% endif %}
     </div>
     {% endif %}
   </div>
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>
 function deleteJuge(id, name) {
-  if (!confirm(`Supprimer ${name} ?`)) return;
-  fetch(`/juges/${id}/delete`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success) location.reload(); });
+  if (!confirm(`Supprimer ${name} ? Cette action est irréversible.`)) return;
+  fetch(`/juges/${id}/delete`, {method:'POST', headers:{'Content-Type':'application/json'}})
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); });
 }
 </script>
 {% endblock %}

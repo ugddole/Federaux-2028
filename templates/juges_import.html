@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Import Juges{% endblock %}
+{% block page_title %}<i class="bi bi-upload me-2"></i>Importer des juges{% endblock %}
+{% block content %}
+<div class="fscf-card" style="max-width:560px;">
+  <div class="fscf-card-header purple"><i class="bi bi-file-earmark-excel me-2"></i>Import Excel</div>
+  <div class="fscf-card-body">
+    <p class="text-muted small">
+      Le fichier doit contenir les colonnes, dans l'ordre : <strong>Nom, Prénom, Email, Club/Comité, Région, Catégorie, Dossard,
+      Repas S.Midi, Repas S.Soir, Soirée Juges, Collation D.Midi, Notes</strong>
+      (la première ligne d'en-têtes est ignorée). Pour les colonnes repas/soirée, indiquez <code>x</code> ou <code>oui</code> pour cocher.
+      Le dossard est généré automatiquement s'il est laissé vide. Le mot de passe par défaut est <code>dole2028</code>
+      (changement obligatoire à la première connexion). Vous pouvez exporter les juges actuels pour obtenir un modèle.
+    </p>
+    <form method="POST" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label">Fichier Excel (.xlsx)</label>
+        <input type="file" name="fichier" accept=".xlsx" class="form-control" required>
+      </div>
+      <button type="submit" class="btn-fscf" style="background:var(--purple);border-color:var(--purple);"><i class="bi bi-upload me-2"></i>Importer</button>
+      <a href="{{ url_for('juges_list') }}" class="btn-fscf-outline" style="border-color:var(--purple);color:var(--purple);">Annuler</a>
+    </form>
+  </div>
+</div>
+{% endblock %}
