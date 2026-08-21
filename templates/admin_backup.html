@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Sauvegardes{% endblock %}
+{% block page_title %}<i class="bi bi-hdd-fill me-2"></i>Sauvegardes de la base de données{% endblock %}
+{% block topbar_actions %}
+<form method="POST" action="{{ url_for('admin_backup_now') }}">
+  <button type="submit" class="btn-fscf"><i class="bi bi-cloud-arrow-up-fill me-1"></i>Sauvegarder maintenant</button>
+</form>
+{% endblock %}
+{% block content %}
+<div class="fscf-card mb-4">
+  <div class="fscf-card-body">
+    <p class="mb-0 text-muted small">
+      <i class="bi bi-info-circle me-1"></i>
+      Une sauvegarde automatique est effectuée toutes les <strong>{{ interval_min }} minutes</strong>.
+      Les <strong>{{ keep }}</strong> sauvegardes les plus récentes sont conservées, les plus anciennes sont supprimées automatiquement.
+      Vous pouvez aussi déclencher une sauvegarde immédiate à tout moment avec le bouton ci-dessus.
+    </p>
+  </div>
+</div>
+
+<div class="fscf-card">
+  <div class="fscf-card-header navy"><i class="bi bi-clock-history me-2"></i>Historique des sauvegardes ({{ backups|length }})</div>
+  <div class="fscf-card-body p-0">
+    {% if backups %}
+    <table class="fscf-table">
+      <thead><tr><th>Fichier</th><th>Date</th><th>Taille</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for b in backups %}
+      <tr>
+        <td><code>{{ b.name }}</code></td>
+        <td>{{ b.date }}</td>
+        <td>{{ b.size_ko }} Ko</td>
+        <td>
+          <a href="{{ url_for('admin_backup_download', filename=b.name) }}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-download me-1"></i>Télécharger
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="p-5 text-center text-muted">
+      <i class="bi bi-hdd fs-1 d-block mb-2"></i>Aucune sauvegarde pour le moment.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
