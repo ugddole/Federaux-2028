@@ -392,26 +392,54 @@ code{
    BUTTONS
    ========================================================================== */
 .btn-fscf{
+  display:inline-block;
+  padding:.5rem 1.1rem;
   background:var(--pink);
   color:#fff;
   border:1px solid var(--pink);
   border-radius:10px;
   font-weight:600;
   font-size:.88rem;
+  text-decoration:none;
   transition:background .15s ease, transform .15s ease;
 }
-.btn-fscf:hover{background:var(--pink-dark); color:#fff; transform:translateY(-1px);}
+.btn-fscf:hover{background:var(--pink-dark); color:#fff; transform:translateY(-1px); text-decoration:none;}
 
 .btn-fscf-outline{
+  display:inline-block;
+  padding:.5rem 1.1rem;
   background:#fff;
   color:var(--pink);
   border:1px solid var(--pink);
   border-radius:10px;
   font-weight:600;
   font-size:.88rem;
+  text-decoration:none;
   transition:background .15s ease, transform .15s ease;
 }
-.btn-fscf-outline:hover{background:var(--pink-tint); transform:translateY(-1px);}
+.btn-fscf-outline:hover{background:var(--pink-tint); transform:translateY(-1px); text-decoration:none; color:var(--pink);}
+
+/* Boutons "Accès rapides" du dashboard */
+.quick-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.6rem;
+}
+.quick-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:.4rem;
+  padding:.55rem 1rem;
+  background:#fff;
+  color:var(--pink);
+  border:1px solid var(--pink);
+  border-radius:10px;
+  font-weight:600;
+  font-size:.85rem;
+  text-decoration:none;
+  transition:background .15s ease, transform .15s ease;
+}
+.quick-btn:hover{background:var(--pink-tint); transform:translateY(-1px); text-decoration:none; color:var(--pink);}
 
 /* ==========================================================================
    SURCHARGES BOOTSTRAP GLOBALES
