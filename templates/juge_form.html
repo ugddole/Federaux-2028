@@ -51,6 +51,10 @@
           <label class="form-label fw-semibold">Numéro de dossard</label>
           <input type="text" name="dossard" class="form-control" value="{{ item.numero_dossard if item else '' }}" placeholder="Généré automatiquement">
         </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Téléphone</label>
+          <input type="tel" name="telephone" class="form-control" value="{{ item.telephone if item else '' }}">
+        </div>
         <div class="col-12">
           <label class="form-label fw-semibold">Options repas / soirée</label>
           <div class="d-flex flex-wrap gap-3 p-3" style="background:#f8f9fa; border-radius:8px;">

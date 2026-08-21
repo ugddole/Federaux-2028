@@ -19,9 +19,20 @@
           <tr><td class="text-muted py-1">Club</td><td><strong>{{ p.club }}</strong></td></tr>
           <tr><td class="text-muted py-1">Région</td><td>{{ p.region or '—' }}</td></tr>
           <tr><td class="text-muted py-1">Email</td><td style="word-break:break-all;">{{ p.email }}</td></tr>
+          <tr><td class="text-muted py-1">Téléphone</td><td>{{ p.telephone or '—' }}</td></tr>
           <tr><td class="text-muted py-1">Badge</td><td>{% if p.badge_generated %}<span class="badge bg-success">Généré</span>{% else %}<span class="badge bg-secondary">Non généré</span>{% endif %}</td></tr>
           <tr><td class="text-muted py-1">Notes</td><td>{{ p.notes or '—' }}</td></tr>
         </table>
+      </div>
+    </div>
+
+    <div class="fscf-card mb-3">
+      <div class="fscf-card-header navy"><i class="bi bi-cup-hot me-2"></i>Options repas / gala</div>
+      <div class="fscf-card-body d-flex flex-wrap gap-2">
+        <span class="badge {{ 'bg-success' if p.repas_samedi_midi else 'bg-secondary' }}">Repas samedi midi</span>
+        <span class="badge {{ 'bg-success' if p.repas_samedi_soir else 'bg-secondary' }}">Repas samedi soir</span>
+        <span class="badge {{ 'bg-success' if p.gala else 'bg-secondary' }}">Gala</span>
+        <span class="badge {{ 'bg-success' if p.collation_dimanche_midi else 'bg-secondary' }}">Collation dimanche midi</span>
       </div>
     </div>
 
