@@ -478,7 +478,7 @@ def participants_list():
 @app.route('/participants/new', methods=['GET','POST'])
 @login_required
 def participant_new():
-    if not current_user.is_admin:
+    if not (current_user.is_admin or current_user.has_droit('competition')):
         abort(403)
     if request.method == 'POST':
         f = request.form
@@ -519,7 +519,7 @@ def participant_detail(id):
 @app.route('/participants/<int:id>/edit', methods=['GET','POST'])
 @login_required
 def participant_edit(id):
-    if not current_user.is_admin: abort(403)
+    if not (current_user.is_admin or current_user.has_droit('competition')): abort(403)
     conn = get_db()
     p = conn.execute('SELECT p.*,u.nom,u.prenom,u.email FROM participants p JOIN users u ON p.user_id=u.id WHERE p.id=?',(id,)).fetchone()
     if not p: abort(404)
@@ -716,7 +716,7 @@ def api_affecter():
 @app.route('/programme')
 @login_required
 def programme():
-    if not (current_user.has_droit('competition') or current_user.has_droit('participants')): abort(403)
+    if not (current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication')): abort(403)
     conn = get_db()
     items = conn.execute('SELECT * FROM programme ORDER BY ordre,heure_debut').fetchall()
     conn.close()
@@ -1173,7 +1173,7 @@ def _editable_categories(conn):
 @app.route('/taches/urgentes')
 @login_required
 def taches_urgentes():
-    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation') or current_user.has_droit('communication')): abort(403)
     conn = get_db()
     taches = conn.execute('''
         SELECT t.*, m.nom mission_nom, m.couleur mission_couleur, u.nom resp_nom, u.prenom resp_prenom
@@ -1204,7 +1204,7 @@ def taches_urgentes():
 @app.route('/taches')
 @login_required
 def taches_list():
-    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation') or current_user.has_droit('communication')): abort(403)
     conn = get_db()
     taches = conn.execute('''
         SELECT t.*, m.nom mission_nom, m.couleur mission_couleur, u.nom resp_nom, u.prenom resp_prenom
@@ -1265,7 +1265,7 @@ def tache_new():
 @app.route('/taches/<int:id>')
 @login_required
 def tache_detail(id):
-    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation') or current_user.has_droit('communication')): abort(403)
     conn = get_db()
     t = conn.execute('''
         SELECT t.*, u.nom resp_nom, u.prenom resp_prenom
