@@ -17,7 +17,7 @@
 </head>
 <body>
 
-{% if current_user.is_authenticated %}
+{% if current_user.is_authenticated and not hide_sidebar %}
 <!-- SIDEBAR -->
 <div class="sidebar">
   <div class="sidebar-brand">
