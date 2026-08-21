@@ -458,7 +458,7 @@ def dashboard():
 @app.route('/participants')
 @login_required
 def participants_list():
-    if not (current_user.has_droit('participants') or current_user.has_droit('competition')): abort(403)
+    if not (current_user.has_droit('participants') or current_user.has_droit('competition') or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     q, cat = request.args.get('q',''), request.args.get('cat','')
     sql = 'SELECT p.*,u.nom,u.prenom,u.email FROM participants p JOIN users u ON p.user_id=u.id WHERE 1=1'
@@ -575,7 +575,7 @@ def benevoles_list():
 @app.route('/benevoles/new', methods=['GET','POST'])
 @login_required
 def benevole_new():
-    if not current_user.is_admin: abort(403)
+    if not (current_user.is_admin or current_user.has_droit('organisation')): abort(403)
     if request.method == 'POST':
         f = request.form
         droits = ','.join(request.form.getlist('droits'))
@@ -716,7 +716,7 @@ def api_affecter():
 @app.route('/programme')
 @login_required
 def programme():
-    if not (current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication')): abort(403)
+    if not (current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication') or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     items = conn.execute('SELECT * FROM programme ORDER BY ordre,heure_debut').fetchall()
     conn.close()
@@ -728,7 +728,7 @@ def programme():
 @app.route('/programme/new', methods=['GET','POST'])
 @login_required
 def programme_new():
-    if not current_user.is_admin: abort(403)
+    if not (current_user.is_admin or current_user.has_droit('organisation')): abort(403)
     if request.method == 'POST':
         f = request.form
         conn = get_db()
@@ -742,7 +742,7 @@ def programme_new():
 @app.route('/programme/<int:id>/edit', methods=['GET','POST'])
 @login_required
 def programme_edit(id):
-    if not current_user.is_admin: abort(403)
+    if not (current_user.is_admin or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     item = conn.execute('SELECT * FROM programme WHERE id=?',(id,)).fetchone()
     if not item: abort(404)
@@ -769,8 +769,8 @@ def programme_del(id):
 # ── FORUM ─────────────────────────────────────────────────────────────────────
 @app.route('/forum')
 @login_required
-@require_droit('communication')
 def forum():
+    if not (current_user.has_droit('communication') or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     cats = conn.execute('''
         SELECT fc.*,COUNT(fq.id) nb,SUM(CASE WHEN fq.is_resolved=0 THEN 1 ELSE 0 END) ouvertes
