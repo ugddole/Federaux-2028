@@ -166,6 +166,8 @@ def init_db():
             telephone TEXT DEFAULT '',
             tshirt TEXT DEFAULT 'M',
             notes TEXT DEFAULT '',
+            qr_token TEXT UNIQUE,
+            badge_generated INTEGER DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
         CREATE TABLE IF NOT EXISTS juges (
@@ -369,7 +371,30 @@ def migrate_db():
     except Exception:
         pass
     try:
+        c.execute("ALTER TABLE access_logs ADD COLUMN benevole_id INTEGER DEFAULT NULL")
+        conn.commit()
+    except Exception:
+        pass
+    try:
         c.execute("ALTER TABLE juges ADD COLUMN telephone TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE benevoles ADD COLUMN qr_token TEXT")
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE benevoles ADD COLUMN badge_generated INTEGER DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass
+    # génère un qr_token pour les bénévoles existants qui n'en ont pas encore (migration antérieure à cette fonctionnalité)
+    try:
+        rows = c.execute("SELECT id FROM benevoles WHERE qr_token IS NULL OR qr_token=''").fetchall()
+        for r in rows:
+            c.execute("UPDATE benevoles SET qr_token=? WHERE id=?", (str(uuid.uuid4()), r['id']))
         conn.commit()
     except Exception:
         pass
@@ -469,7 +494,7 @@ def qr_to_base64(token):
     return base64.b64encode(buf.getvalue()).decode()
 
 def _draw_badge_page(pdf, header_color, categorie, prenom, nom, club, numero_dossard, qr_path,
-                      options):
+                      options, numero_label='Dossard N°'):
     """Dessine une page de badge au format A6 (105x148mm) sur un objet FPDF déjà positionné (add_page() déjà appelé)."""
     W = 105
     pdf.set_fill_color(*header_color)
@@ -512,7 +537,7 @@ def _draw_badge_page(pdf, header_color, categorie, prenom, nom, club, numero_dos
     pdf.set_text_color(*header_color)
     pdf.set_font('Helvetica', 'B', 12)
     pdf.set_xy(4, 75.2)
-    pdf.cell(97, 5, f"Dossard N° {numero_dossard}", align='C')
+    pdf.cell(97, 5, f"{numero_label} {numero_dossard}", align='C')
 
     # ── Options repas / gala/soirée ──────────────────────────────────────────
     pill_w, pill_h, gap = 23.125, 8, 1.5
@@ -669,6 +694,70 @@ def generate_badges_juges_all(only_missing=True):
     conn.commit(); conn.close()
 
     out = os.path.join(BADGES_DIR, f'badges_juges_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
+    pdf.output(out)
+    return out, len(ids)
+
+def generate_badge_benevole(b_id):
+    conn = get_db()
+    b = conn.execute('SELECT b.*,u.nom,u.prenom FROM benevoles b JOIN users u ON b.user_id=u.id WHERE b.id=?', (b_id,)).fetchone()
+    conn.close()
+    if not b:
+        return None
+    if not b['qr_token']:
+        # sécurité : génère un token à la volée si jamais il manque (anciens comptes)
+        token = str(uuid.uuid4())
+        conn = get_db()
+        conn.execute('UPDATE benevoles SET qr_token=? WHERE id=?', (token, b_id))
+        conn.commit(); conn.close()
+    else:
+        token = b['qr_token']
+
+    qr_path = os.path.join(QR_DIR, f'qr_benevole_{b_id}.png')
+    _make_qr(token, qr_path)
+
+    pdf = FPDF(orientation='P', unit='mm', format='A6')
+    pdf.set_auto_page_break(False)
+    pdf.add_page()
+    numero = f'B{2028}{b_id:04d}'
+    _draw_badge_page(pdf, (0, 153, 68), 'BÉNÉVOLE', b['prenom'], b['nom'], f"Taille T-shirt : {b['tshirt']}", numero,
+                      qr_path, [], numero_label='N° Bénévole')
+
+    out = os.path.join(BADGES_DIR, f'badge_benevole_{b_id}.pdf')
+    pdf.output(out)
+    return out
+
+def generate_badges_benevoles_all(only_missing=True):
+    """Génère un unique PDF multi-pages avec les badges de tous les bénévoles
+    (ou seulement ceux sans badge encore généré si only_missing=True)."""
+    conn = get_db()
+    sql = "SELECT b.*,u.nom,u.prenom FROM benevoles b JOIN users u ON b.user_id=u.id"
+    if only_missing:
+        sql += " WHERE b.badge_generated=0"
+    sql += " ORDER BY u.nom,u.prenom"
+    items = conn.execute(sql).fetchall()
+    if not items:
+        conn.close()
+        return None, 0
+
+    pdf = FPDF(orientation='P', unit='mm', format='A6')
+    pdf.set_auto_page_break(False)
+    ids = []
+    for b in items:
+        token = b['qr_token'] or str(uuid.uuid4())
+        if not b['qr_token']:
+            conn.execute('UPDATE benevoles SET qr_token=? WHERE id=?', (token, b['id']))
+        qr_path = os.path.join(QR_DIR, f'qr_benevole_{b["id"]}.png')
+        _make_qr(token, qr_path)
+        pdf.add_page()
+        numero = f'B{2028}{b["id"]:04d}'
+        _draw_badge_page(pdf, (0, 153, 68), 'BÉNÉVOLE', b['prenom'], b['nom'], f"Taille T-shirt : {b['tshirt']}", numero,
+                          qr_path, [], numero_label='N° Bénévole')
+        ids.append(b['id'])
+
+    conn.execute(f"UPDATE benevoles SET badge_generated=1 WHERE id IN ({','.join('?'*len(ids))})", ids)
+    conn.commit(); conn.close()
+
+    out = os.path.join(BADGES_DIR, f'badges_benevoles_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
     pdf.output(out)
     return out, len(ids)
 
@@ -1192,6 +1281,30 @@ def benevoles_list():
     conn.close()
     return render_template('benevoles_list.html', items=items, page=page, total_pages=total_pages, total=total)
 
+@app.route('/benevoles/<int:id>/badge')
+@login_required
+def benevole_badge(id):
+    if not (current_user.is_admin or current_user.has_droit('organisation')): abort(403)
+    path = generate_badge_benevole(id)
+    if not path: abort(404)
+    conn = get_db()
+    conn.execute('UPDATE benevoles SET badge_generated=1 WHERE id=?',(id,))
+    b = conn.execute('SELECT u.nom,u.prenom FROM benevoles b JOIN users u ON b.user_id=u.id WHERE b.id=?',(id,)).fetchone()
+    conn.commit(); conn.close()
+    return send_file(path, as_attachment=True, download_name=f"badge_{b['prenom']}_{b['nom']}.pdf")
+
+@app.route('/benevoles/badges/all')
+@login_required
+def benevoles_badges_all():
+    if not (current_user.is_admin or current_user.has_droit('organisation')): abort(403)
+    only_missing = request.args.get('all') != '1'
+    path, count = generate_badges_benevoles_all(only_missing=only_missing)
+    if not path:
+        flash('Aucun badge à générer (tous les bénévoles ont déjà un badge).', 'warning')
+        return redirect(url_for('benevoles_list'))
+    flash(f'{count} badge(s) généré(s) dans un seul PDF.', 'success')
+    return send_file(path, as_attachment=True, download_name=os.path.basename(path))
+
 @app.route('/benevoles/new', methods=['GET','POST'])
 @login_required
 def benevole_new():
@@ -1207,8 +1320,9 @@ def benevole_new():
                 (email, generate_password_hash(password),
                  f['nom'].strip(), f['prenom'].strip(), 'benevole', droits))
             uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
-            conn.execute('INSERT INTO benevoles (user_id,telephone,tshirt,notes) VALUES (?,?,?,?)',
-                (uid, f.get('tel',''), f.get('tshirt','M'), f.get('notes','')))
+            token = str(uuid.uuid4())
+            conn.execute('INSERT INTO benevoles (user_id,telephone,tshirt,notes,qr_token) VALUES (?,?,?,?,?)',
+                (uid, f.get('tel',''), f.get('tshirt','M'), f.get('notes',''), token))
             conn.commit(); conn.close()
             send_welcome_email(email, f['prenom'].strip(), f['nom'].strip(), password, url_for('login', _external=True))
             flash(f"Bénévole {f['prenom']} {f['nom']} créé.", 'success')
@@ -1587,6 +1701,10 @@ def scanner():
         SELECT al.*,u.nom,u.prenom,j.categorie,j.numero_dossard,j.club, 'juge' AS type
         FROM access_logs al JOIN juges j ON al.juge_id=j.id
         JOIN users u ON j.user_id=u.id
+        UNION ALL
+        SELECT al.*,u.nom,u.prenom,'BÉNÉVOLE' AS categorie,('B2028'||printf('%04d',b.id)) AS numero_dossard,'Bénévole' AS club, 'benevole' AS type
+        FROM access_logs al JOIN benevoles b ON al.benevole_id=b.id
+        JOIN users u ON b.user_id=u.id
         ORDER BY timestamp DESC LIMIT 20
     ''').fetchall()
     conn.close()
@@ -1626,6 +1744,19 @@ def api_scan():
         conn.commit(); conn.close()
         return jsonify(statut=statut, type='juge', nom=j['nom'], prenom=j['prenom'],
                        club=j['club'], categorie=j['categorie'], dossard=j['numero_dossard'])
+
+    b = conn.execute('''
+        SELECT b.*,u.nom,u.prenom FROM benevoles b
+        JOIN users u ON b.user_id=u.id WHERE b.qr_token=?
+    ''', (token,)).fetchone()
+    if b:
+        already = conn.execute("SELECT id FROM access_logs WHERE benevole_id=? AND date(timestamp)=date('now')",(b['id'],)).fetchone()
+        statut = 'deja_scanne' if already else 'ok'
+        conn.execute('INSERT INTO access_logs (benevole_id,scanner_id,qr_token,site,statut) VALUES (?,?,?,?,?)',
+            (b['id'], current_user.id, token, site, statut))
+        conn.commit(); conn.close()
+        return jsonify(statut=statut, type='benevole', nom=b['nom'], prenom=b['prenom'],
+                       club='Bénévole', categorie='BÉNÉVOLE', dossard=f'B{2028}{b["id"]:04d}')
 
     conn.close()
     return jsonify(statut='invalide', message='QR code non reconnu'), 404
