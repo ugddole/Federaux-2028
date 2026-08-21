@@ -21,6 +21,12 @@
     </div>
   </div>
   <div class="col-md-4 col-lg-2">
+    <div class="stat-card purple">
+      <div class="stat-icon">🏅</div>
+      <div><div class="stat-number">{{ stats.juges }}</div><div class="stat-label">Juges</div></div>
+    </div>
+  </div>
+  <div class="col-md-4 col-lg-2">
     <div class="stat-card green">
       <div class="stat-icon">🙋</div>
       <div><div class="stat-number">{{ stats.benevoles }}</div><div class="stat-label">Bénévoles</div></div>
@@ -69,12 +75,17 @@
           <i class="bi bi-person-plus-fill me-2"></i>Nouveau participant
         </a>
         {% endif %}
+        {% if current_user.has_droit('juges') %}
+        <a href="{{ url_for('juge_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#6a0dad;color:#6a0dad;">
+          <i class="bi bi-award-fill me-2"></i>Nouveau juge
+        </a>
+        {% endif %}
         {% if current_user.has_droit('organisation') %}
         <a href="{{ url_for('benevole_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;">
           <i class="bi bi-person-heart me-2"></i>Nouveau bénévole
         </a>
         {% endif %}
-        {% if current_user.has_droit('competition') or current_user.has_droit('organisation') %}
+        {% if current_user.has_droit('competition') or current_user.has_droit('organisation') or current_user.has_droit('juges') %}
         <a href="{{ url_for('scanner') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#0066CC;color:#0066CC;">
           <i class="bi bi-qr-code-scan me-2"></i>Scanner un badge
         </a>

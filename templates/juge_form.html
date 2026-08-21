@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}{% if action=='new' %}Nouveau juge{% else %}Modifier juge{% endif %}{% endblock %}
+{% block page_title %}<i class="bi bi-award-fill me-2"></i>{% if action=='new' %}Nouveau juge{% else %}Modifier {{ item.prenom }} {{ item.nom }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-7">
+<div class="fscf-card">
+  <div class="fscf-card-header purple">
+    <span>{% if action=='new' %}<i class="bi bi-person-plus-fill me-2"></i>Créer un compte juge{% else %}<i class="bi bi-pencil me-2"></i>Modifier{% endif %}</span>
+  </div>
+  <div class="fscf-card-body">
+    <form method="POST">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Prénom *</label>
+          <input type="text" name="prenom" class="form-control" value="{{ item.prenom if item else '' }}" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Nom *</label>
+          <input type="text" name="nom" class="form-control" value="{{ item.nom if item else '' }}" required>
+        </div>
+        {% if action == 'new' %}
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Email *</label>
+          <input type="email" name="email" class="form-control" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Mot de passe</label>
+          <input type="text" name="password" class="form-control" value="dole2028" placeholder="dole2028 par défaut">
+        </div>
+        {% endif %}
+        <div class="col-md-8">
+          <label class="form-label fw-semibold">Club / Comité *</label>
+          <input type="text" name="club" class="form-control" value="{{ item.club if item else '' }}" required placeholder="Ex: Comité régional FSCF">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Région</label>
+          <input type="text" name="region" class="form-control" value="{{ item.region if item else '' }}" placeholder="Ex: Île-de-France">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Catégorie *</label>
+          <select name="categorie" class="form-select" required>
+            <option value="">Choisir…</option>
+            {% for cat in cats %}
+            <option value="{{ cat }}" {% if item and item.categorie==cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Numéro de dossard</label>
+          <input type="text" name="dossard" class="form-control" value="{{ item.numero_dossard if item else '' }}" placeholder="Généré automatiquement">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Options repas / soirée</label>
+          <div class="d-flex flex-wrap gap-3 p-3" style="background:#f8f9fa; border-radius:8px;">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="repas_samedi_midi" value="1" id="j_repas_samedi_midi"
+                {% if item and item.repas_samedi_midi %}checked{% endif %}>
+              <label class="form-check-label" for="j_repas_samedi_midi">Repas samedi midi</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="repas_samedi_soir" value="1" id="j_repas_samedi_soir"
+                {% if item and item.repas_samedi_soir %}checked{% endif %}>
+              <label class="form-check-label" for="j_repas_samedi_soir">Repas samedi soir</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="soiree_juges" value="1" id="j_soiree_juges"
+                {% if item and item.soiree_juges %}checked{% endif %}>
+              <label class="form-check-label" for="j_soiree_juges">Soirée Juges</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="collation_dimanche_midi" value="1" id="j_collation_dimanche_midi"
+                {% if item and item.collation_dimanche_midi %}checked{% endif %}>
+              <label class="form-check-label" for="j_collation_dimanche_midi">Collation dimanche midi</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Notes</label>
+          <textarea name="notes" class="form-control" rows="2">{{ item.notes if item else '' }}</textarea>
+        </div>
+        <div class="col-12 d-flex flex-wrap gap-2">
+          <button type="submit" class="btn-fscf px-4 py-2" style="background:var(--purple);border-color:var(--purple);">
+            <i class="bi bi-check-lg me-1"></i>{% if action=='new' %}Créer{% else %}Enregistrer{% endif %}
+          </button>
+          <a href="{{ url_for('juges_list') }}" class="btn btn-light px-4 py-2">Annuler</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+</div>
+</div>
+{% endblock %}
