@@ -231,6 +231,11 @@ def migrate_db():
         conn.commit()
     except Exception:
         pass
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass
 
     if not c.execute("SELECT id FROM users WHERE email='admin@dole2028.fr'").fetchone():
         c.execute("INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)",
@@ -273,6 +278,7 @@ class User(UserMixin):
         self.prenom = row['prenom']
         self.role = row['role']
         self.droits = (row['droits'] or '').split(',') if row['droits'] else []
+        self.must_change_password = bool(row['must_change_password']) if row['must_change_password'] is not None else False
     @property
     def is_admin(self): return self.role == 'admin'
     @property
@@ -414,6 +420,44 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+@app.before_request
+def force_password_change():
+    if current_user.is_authenticated and getattr(current_user, 'must_change_password', False):
+        allowed = {'change_password', 'logout', 'static'}
+        if request.endpoint not in allowed:
+            return redirect(url_for('change_password'))
+
+@app.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        conn = get_db()
+        row = conn.execute('SELECT * FROM users WHERE id=?', (current_user.id,)).fetchone()
+        current_pwd = request.form.get('current_password', '')
+        new_pwd = request.form.get('new_password', '')
+        confirm_pwd = request.form.get('confirm_password', '')
+
+        if not check_password_hash(row['password_hash'], current_pwd):
+            conn.close()
+            flash('Mot de passe actuel incorrect.', 'danger')
+            return render_template('change_password.html', hide_sidebar=True)
+        if len(new_pwd) < 6:
+            conn.close()
+            flash('Le nouveau mot de passe doit contenir au moins 6 caractères.', 'danger')
+            return render_template('change_password.html', hide_sidebar=True)
+        if new_pwd != confirm_pwd:
+            conn.close()
+            flash('Les deux mots de passe ne correspondent pas.', 'danger')
+            return render_template('change_password.html', hide_sidebar=True)
+
+        conn.execute('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?',
+                      (generate_password_hash(new_pwd), current_user.id))
+        conn.commit()
+        conn.close()
+        flash('Mot de passe modifié avec succès.', 'success')
+        return redirect(url_for('dashboard'))
+    return render_template('change_password.html', hide_sidebar=True)
+
 # ── DASHBOARD ─────────────────────────────────────────────────────────────────
 @app.route('/')
 @login_required
@@ -484,7 +528,7 @@ def participant_new():
         f = request.form
         conn = get_db()
         try:
-            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)',
+            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,must_change_password) VALUES (?,?,?,?,?,1)',
                 (f['email'].strip().lower(), generate_password_hash(f.get('password','dole2028')),
                  f['nom'].strip(), f['prenom'].strip(), 'participant'))
             uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
@@ -581,7 +625,7 @@ def benevole_new():
         droits = ','.join(request.form.getlist('droits'))
         conn = get_db()
         try:
-            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,droits) VALUES (?,?,?,?,?,?)',
+            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,droits,must_change_password) VALUES (?,?,?,?,?,?,1)',
                 (f['email'].strip().lower(), generate_password_hash(f.get('password','benevole2028')),
                  f['nom'].strip(), f['prenom'].strip(), 'benevole', droits))
             uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
@@ -1012,7 +1056,7 @@ def admin_responsable_new():
     f = request.form
     conn = get_db()
     try:
-        conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)',
+        conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,must_change_password) VALUES (?,?,?,?,?,1)',
             (f['email'].strip().lower(), generate_password_hash(f.get('password','dole2028')),
              f['nom'].strip(), f['prenom'].strip(), 'responsable'))
         conn.commit()
@@ -1045,7 +1089,7 @@ def admin_reset(id):
     if not current_user.is_admin: abort(403)
     pwd = request.form.get('password','dole2028')
     conn = get_db()
-    conn.execute('UPDATE users SET password_hash=? WHERE id=?',(generate_password_hash(pwd),id))
+    conn.execute('UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?',(generate_password_hash(pwd),id))
     conn.commit(); conn.close()
     flash('Mot de passe réinitialisé.','success')
     return redirect(url_for('admin'))
@@ -1231,7 +1275,7 @@ def import_confirm():
             skip += 1
             continue
         try:
-            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)',
+            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,must_change_password) VALUES (?,?,?,?,?,1)',
                 (r['email'], generate_password_hash('dole2028'), r['nom'], r['prenom'], 'participant'))
             uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             token = str(uuid.uuid4())
