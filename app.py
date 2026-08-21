@@ -64,6 +64,22 @@ def init_db():
             notes TEXT DEFAULT '',
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
+        CREATE TABLE IF NOT EXISTS juges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            club TEXT NOT NULL,
+            region TEXT DEFAULT '',
+            categorie TEXT NOT NULL,
+            numero_dossard TEXT UNIQUE,
+            qr_token TEXT UNIQUE,
+            badge_generated INTEGER DEFAULT 0,
+            notes TEXT DEFAULT '',
+            repas_samedi_midi INTEGER DEFAULT 0,
+            repas_samedi_soir INTEGER DEFAULT 0,
+            soiree_juges INTEGER DEFAULT 0,
+            collation_dimanche_midi INTEGER DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
         CREATE TABLE IF NOT EXISTS missions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nom TEXT NOT NULL,
@@ -242,6 +258,11 @@ def migrate_db():
             conn.commit()
         except Exception:
             pass
+    try:
+        c.execute("ALTER TABLE access_logs ADD COLUMN juge_id INTEGER DEFAULT NULL")
+        conn.commit()
+    except Exception:
+        pass
 
     if not c.execute("SELECT id FROM users WHERE email='admin@dole2028.fr'").fetchone():
         c.execute("INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)",
@@ -274,7 +295,7 @@ def migrate_db():
     conn.close()
 
 # ── USER MODEL ────────────────────────────────────────────────────────────────
-DROITS_DISPONIBLES = ['participants', 'competition', 'communication', 'organisation', 'administration']
+DROITS_DISPONIBLES = ['participants', 'competition', 'communication', 'organisation', 'administration', 'juges']
 
 class User(UserMixin):
     def __init__(self, row):
@@ -430,6 +451,104 @@ def generate_badge(p_id):
     pdf.output(out)
     return out
 
+def generate_badge_juge(j_id):
+    conn = get_db()
+    j = conn.execute('SELECT j.*,u.nom,u.prenom FROM juges j JOIN users u ON j.user_id=u.id WHERE j.id=?', (j_id,)).fetchone()
+    conn.close()
+    if not j:
+        return None
+
+    qr_path = os.path.join(QR_DIR, f'qr_juge_{j_id}.png')
+    qr = qrcode.QRCode(version=1, box_size=8, border=2)
+    qr.add_data(j['qr_token'])
+    qr.make(fit=True)
+    qr.make_image(fill_color='#1a1a2e', back_color='white').save(qr_path)
+
+    pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
+    pdf.add_page()
+    pdf.set_auto_page_break(False)
+
+    pdf.set_fill_color(106, 13, 173)
+    pdf.rect(0, 0, 86, 28, 'F')
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Helvetica', 'B', 12)
+    pdf.set_xy(3, 5)
+    pdf.cell(80, 7, 'DOLE 2028', align='C')
+    pdf.set_font('Helvetica', '', 7)
+    pdf.set_xy(3, 13)
+    pdf.cell(80, 4, 'Manifestation Nationale FSCF', align='C')
+    pdf.set_xy(3, 18)
+    pdf.cell(80, 4, 'Gymnastique Artistique Feminine', align='C')
+
+    pdf.set_fill_color(26, 26, 46)
+    pdf.rect(0, 29, 86, 8, 'F')
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Helvetica', 'B', 8)
+    pdf.set_xy(3, 31)
+    pdf.cell(80, 5, str(j['categorie']).upper(), align='C')
+
+    pdf.set_text_color(26, 26, 46)
+    pdf.set_font('Helvetica', 'B', 15)
+    pdf.set_xy(3, 40)
+    pdf.cell(80, 8, str(j['prenom']).upper(), align='C')
+    pdf.set_font('Helvetica', 'B', 13)
+    pdf.set_xy(3, 49)
+    pdf.cell(80, 7, str(j['nom']).upper(), align='C')
+
+    pdf.set_font('Helvetica', '', 9)
+    pdf.set_text_color(80, 80, 80)
+    pdf.set_xy(3, 58)
+    club = str(j['club'])
+    if len(club) > 35:
+        club = club[:33] + '...'
+    pdf.cell(80, 5, club, align='C')
+
+    pdf.set_fill_color(245, 245, 245)
+    pdf.rect(3, 65, 80, 8, 'F')
+    pdf.set_text_color(106, 13, 173)
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.set_xy(3, 67)
+    pdf.cell(80, 5, f"Dossard N° {j['numero_dossard']}", align='C')
+
+    # ── Options repas / soirée ──────────────────────────────────────────────
+    options = [
+        ('S.MIDI', bool(j['repas_samedi_midi']), (226, 0, 122)),
+        ('S.SOIR', bool(j['repas_samedi_soir']), (0, 102, 204)),
+        ('SOIREE', bool(j['soiree_juges']), (106, 13, 173)),
+        ('D.MIDI', bool(j['collation_dimanche_midi']), (0, 153, 68)),
+    ]
+    pill_w, pill_h, gap = 18.5, 7, 1.33
+    x = 3
+    y_pills = 76
+    for label, active, color in options:
+        if active:
+            pdf.set_fill_color(*color)
+            pdf.rect(x, y_pills, pill_w, pill_h, 'F')
+            pdf.set_text_color(255, 255, 255)
+        else:
+            pdf.set_draw_color(210, 210, 210)
+            pdf.set_line_width(0.2)
+            pdf.rect(x, y_pills, pill_w, pill_h)
+            pdf.set_text_color(190, 190, 190)
+        pdf.set_font('Helvetica', 'B', 6.5)
+        pdf.set_xy(x, y_pills + 2)
+        pdf.cell(pill_w, 4, label, align='C')
+        x += pill_w + gap
+
+    pdf.image(qr_path, x=23, y=87, w=40, h=40)
+
+    pdf.set_text_color(160, 160, 160)
+    pdf.set_font('Helvetica', '', 6)
+    pdf.set_xy(3, 129)
+    pdf.cell(80, 4, 'Scanner ce badge pour valider l\'acces', align='C')
+
+    pdf.set_fill_color(106, 13, 173)
+    pdf.rect(0, 133, 86, 4, 'F')
+
+    out = os.path.join(BADGES_DIR, f'badge_juge_{j_id}.pdf')
+    pdf.output(out)
+    return out
+
 # ── AUTH ──────────────────────────────────────────────────────────────────────
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -511,6 +630,7 @@ def dashboard():
         'total_participants': total_participants,
         'by_category': by_category,
         'benevoles': conn.execute('SELECT COUNT(*) FROM benevoles').fetchone()[0],
+        'juges': conn.execute('SELECT COUNT(*) FROM juges').fetchone()[0],
         'missions': conn.execute('SELECT COUNT(*) FROM missions').fetchone()[0],
         'questions': conn.execute('SELECT COUNT(*) FROM forum_questions').fetchone()[0],
         'badges': conn.execute('SELECT COUNT(*) FROM participants WHERE badge_generated=1').fetchone()[0],
@@ -524,7 +644,12 @@ def dashboard():
         FROM access_logs al
         JOIN participants p ON al.participant_id=p.id
         JOIN users u ON p.user_id=u.id
-        ORDER BY al.timestamp DESC LIMIT 8
+        UNION ALL
+        SELECT al.timestamp, al.site, al.statut, u.nom, u.prenom, j.categorie, j.numero_dossard
+        FROM access_logs al
+        JOIN juges j ON al.juge_id=j.id
+        JOIN users u ON j.user_id=u.id
+        ORDER BY timestamp DESC LIMIT 8
     ''').fetchall()
     conn.close()
     return render_template('dashboard.html', stats=stats, logs=logs)
@@ -645,6 +770,125 @@ def participant_badge(id):
     p = conn.execute('SELECT u.nom,u.prenom FROM participants p JOIN users u ON p.user_id=u.id WHERE p.id=?',(id,)).fetchone()
     conn.commit(); conn.close()
     return send_file(path, as_attachment=True, download_name=f"badge_{p['prenom']}_{p['nom']}.pdf")
+
+# ── JUGES ─────────────────────────────────────────────────────────────────────
+JUGE_CATEGORIES = ['Juge Régional', 'Juge National', 'Juge International', 'Juge Fédéral']
+
+@app.route('/juges')
+@login_required
+def juges_list():
+    if not (current_user.has_droit('juges')): abort(403)
+    conn = get_db()
+    q, cat = request.args.get('q',''), request.args.get('cat','')
+    sql = 'SELECT j.*,u.nom,u.prenom,u.email FROM juges j JOIN users u ON j.user_id=u.id WHERE 1=1'
+    params = []
+    if q:
+        sql += ' AND (u.nom LIKE ? OR u.prenom LIKE ? OR j.club LIKE ?)'
+        params += [f'%{q}%', f'%{q}%', f'%{q}%']
+    if cat:
+        sql += ' AND j.categorie=?'
+        params.append(cat)
+    sql += ' ORDER BY u.nom,u.prenom'
+    items = conn.execute(sql, params).fetchall()
+    conn.close()
+    return render_template('juges_list.html', items=items, cats=JUGE_CATEGORIES, q=q, cat=cat)
+
+@app.route('/juges/new', methods=['GET','POST'])
+@login_required
+def juge_new():
+    if not (current_user.is_admin or current_user.has_droit('juges')):
+        abort(403)
+    if request.method == 'POST':
+        f = request.form
+        conn = get_db()
+        try:
+            conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,must_change_password) VALUES (?,?,?,?,?,1)',
+                (f['email'].strip().lower(), generate_password_hash(f.get('password','dole2028')),
+                 f['nom'].strip(), f['prenom'].strip(), 'juge'))
+            uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            token = str(uuid.uuid4())
+            count = conn.execute('SELECT COUNT(*) FROM juges').fetchone()[0]
+            dossard = f.get('dossard','').strip() or f'J{2028}{count+1:04d}'
+            conn.execute('''INSERT INTO juges
+                (user_id,club,region,categorie,numero_dossard,qr_token,notes,
+                 repas_samedi_midi,repas_samedi_soir,soiree_juges,collation_dimanche_midi)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+                (uid, f['club'].strip(), f.get('region','').strip(), f['categorie'].strip(), dossard, token, f.get('notes',''),
+                 1 if f.get('repas_samedi_midi') else 0,
+                 1 if f.get('repas_samedi_soir') else 0,
+                 1 if f.get('soiree_juges') else 0,
+                 1 if f.get('collation_dimanche_midi') else 0))
+            jid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            conn.commit(); conn.close()
+            flash(f'Juge créé — Dossard : {dossard}', 'success')
+            return redirect(url_for('juge_detail', id=jid))
+        except sqlite3.IntegrityError:
+            conn.rollback(); conn.close()
+            flash('Email ou dossard déjà utilisé.', 'danger')
+    return render_template('juge_form.html', action='new', item=None, cats=JUGE_CATEGORIES)
+
+@app.route('/juges/<int:id>')
+@login_required
+def juge_detail(id):
+    if not (current_user.has_droit('juges')): abort(403)
+    conn = get_db()
+    j = conn.execute('SELECT j.*,u.nom,u.prenom,u.email FROM juges j JOIN users u ON j.user_id=u.id WHERE j.id=?',(id,)).fetchone()
+    if not j: abort(404)
+    logs = conn.execute('''
+        SELECT al.*,su.nom snom,su.prenom sprenom FROM access_logs al
+        LEFT JOIN users su ON al.scanner_id=su.id WHERE al.juge_id=? ORDER BY al.timestamp DESC
+    ''', (id,)).fetchall()
+    conn.close()
+    qr = qr_to_base64(j['qr_token'])
+    return render_template('juge_detail.html', j=j, qr=qr, logs=logs)
+
+@app.route('/juges/<int:id>/edit', methods=['GET','POST'])
+@login_required
+def juge_edit(id):
+    if not (current_user.is_admin or current_user.has_droit('juges')): abort(403)
+    conn = get_db()
+    j = conn.execute('SELECT j.*,u.nom,u.prenom,u.email FROM juges j JOIN users u ON j.user_id=u.id WHERE j.id=?',(id,)).fetchone()
+    if not j: abort(404)
+    if request.method == 'POST':
+        f = request.form
+        conn.execute('UPDATE users SET nom=?,prenom=? WHERE id=?',(f['nom'],f['prenom'],j['user_id']))
+        conn.execute('''UPDATE juges SET club=?,region=?,categorie=?,numero_dossard=?,notes=?,
+                        repas_samedi_midi=?,repas_samedi_soir=?,soiree_juges=?,collation_dimanche_midi=? WHERE id=?''',
+            (f['club'],f.get('region',''),f['categorie'],f['dossard'],f.get('notes',''),
+             1 if f.get('repas_samedi_midi') else 0,
+             1 if f.get('repas_samedi_soir') else 0,
+             1 if f.get('soiree_juges') else 0,
+             1 if f.get('collation_dimanche_midi') else 0,
+             id))
+        conn.commit(); conn.close()
+        flash('Juge mis à jour.','success')
+        return redirect(url_for('juge_detail', id=id))
+    conn.close()
+    return render_template('juge_form.html', action='edit', item=j, cats=JUGE_CATEGORIES)
+
+@app.route('/juges/<int:id>/delete', methods=['POST'])
+@login_required
+def juge_delete(id):
+    if not current_user.is_admin: return jsonify(error='Non autorisé'), 403
+    conn = get_db()
+    j = conn.execute('SELECT user_id FROM juges WHERE id=?',(id,)).fetchone()
+    if j:
+        conn.execute('DELETE FROM juges WHERE id=?',(id,))
+        conn.execute('DELETE FROM users WHERE id=?',(j['user_id'],))
+        conn.commit()
+    conn.close()
+    return jsonify(success=True)
+
+@app.route('/juges/<int:id>/badge')
+@login_required
+def juge_badge(id):
+    path = generate_badge_juge(id)
+    if not path: abort(404)
+    conn = get_db()
+    conn.execute('UPDATE juges SET badge_generated=1 WHERE id=?',(id,))
+    j = conn.execute('SELECT u.nom,u.prenom FROM juges j JOIN users u ON j.user_id=u.id WHERE j.id=?',(id,)).fetchone()
+    conn.commit(); conn.close()
+    return send_file(path, as_attachment=True, download_name=f"badge_{j['prenom']}_{j['nom']}.pdf")
 
 # ── BÉNÉVOLES ─────────────────────────────────────────────────────────────────
 @app.route('/benevoles')
@@ -1043,9 +1287,14 @@ def forum_resolve(id):
 def scanner():
     conn = get_db()
     logs = conn.execute('''
-        SELECT al.*,u.nom,u.prenom,p.categorie,p.numero_dossard,p.club
+        SELECT al.*,u.nom,u.prenom,p.categorie,p.numero_dossard,p.club, 'participant' AS type
         FROM access_logs al JOIN participants p ON al.participant_id=p.id
-        JOIN users u ON p.user_id=u.id ORDER BY al.timestamp DESC LIMIT 20
+        JOIN users u ON p.user_id=u.id
+        UNION ALL
+        SELECT al.*,u.nom,u.prenom,j.categorie,j.numero_dossard,j.club, 'juge' AS type
+        FROM access_logs al JOIN juges j ON al.juge_id=j.id
+        JOIN users u ON j.user_id=u.id
+        ORDER BY timestamp DESC LIMIT 20
     ''').fetchall()
     conn.close()
     return render_template('scanner.html', logs=logs)
@@ -1061,16 +1310,30 @@ def api_scan():
         SELECT p.*,u.nom,u.prenom FROM participants p
         JOIN users u ON p.user_id=u.id WHERE p.qr_token=?
     ''', (token,)).fetchone()
-    if not p:
-        conn.close()
-        return jsonify(statut='invalide', message='QR code non reconnu'), 404
-    already = conn.execute("SELECT id FROM access_logs WHERE participant_id=? AND date(timestamp)=date('now')",(p['id'],)).fetchone()
-    statut = 'deja_scanne' if already else 'ok'
-    conn.execute('INSERT INTO access_logs (participant_id,scanner_id,qr_token,site,statut) VALUES (?,?,?,?,?)',
-        (p['id'], current_user.id, token, site, statut))
-    conn.commit(); conn.close()
-    return jsonify(statut=statut, nom=p['nom'], prenom=p['prenom'],
-                   club=p['club'], categorie=p['categorie'], dossard=p['numero_dossard'])
+    if p:
+        already = conn.execute("SELECT id FROM access_logs WHERE participant_id=? AND date(timestamp)=date('now')",(p['id'],)).fetchone()
+        statut = 'deja_scanne' if already else 'ok'
+        conn.execute('INSERT INTO access_logs (participant_id,scanner_id,qr_token,site,statut) VALUES (?,?,?,?,?)',
+            (p['id'], current_user.id, token, site, statut))
+        conn.commit(); conn.close()
+        return jsonify(statut=statut, type='participant', nom=p['nom'], prenom=p['prenom'],
+                       club=p['club'], categorie=p['categorie'], dossard=p['numero_dossard'])
+
+    j = conn.execute('''
+        SELECT j.*,u.nom,u.prenom FROM juges j
+        JOIN users u ON j.user_id=u.id WHERE j.qr_token=?
+    ''', (token,)).fetchone()
+    if j:
+        already = conn.execute("SELECT id FROM access_logs WHERE juge_id=? AND date(timestamp)=date('now')",(j['id'],)).fetchone()
+        statut = 'deja_scanne' if already else 'ok'
+        conn.execute('INSERT INTO access_logs (juge_id,scanner_id,qr_token,site,statut) VALUES (?,?,?,?,?)',
+            (j['id'], current_user.id, token, site, statut))
+        conn.commit(); conn.close()
+        return jsonify(statut=statut, type='juge', nom=j['nom'], prenom=j['prenom'],
+                       club=j['club'], categorie=j['categorie'], dossard=j['numero_dossard'])
+
+    conn.close()
+    return jsonify(statut='invalide', message='QR code non reconnu'), 404
 
 # ── ADMIN ─────────────────────────────────────────────────────────────────────
 @app.route('/admin')
