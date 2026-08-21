@@ -75,7 +75,7 @@
           <i class="bi bi-person-plus-fill me-2"></i>Nouveau participant
         </a>
         {% endif %}
-        {% if current_user.has_droit('juges') %}
+        {% if current_user.role != 'juge' and current_user.has_droit('juges') %}
         <a href="{{ url_for('juge_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#6a0dad;color:#6a0dad;">
           <i class="bi bi-award-fill me-2"></i>Nouveau juge
         </a>
@@ -90,7 +90,7 @@
           <i class="bi bi-qr-code-scan me-2"></i>Scanner un badge
         </a>
         {% endif %}
-        {% if current_user.has_droit('participants') or current_user.has_droit('competition') or current_user.has_droit('communication') or current_user.has_droit('organisation') %}
+        {% if current_user.role == 'juge' or current_user.has_droit('participants') or current_user.has_droit('competition') or current_user.has_droit('communication') or current_user.has_droit('organisation') %}
         <a href="{{ url_for('forum_ask') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#009944;color:#009944;">
           <i class="bi bi-chat-dots me-2"></i>Poser une question
         </a>
