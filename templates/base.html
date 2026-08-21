@@ -34,7 +34,7 @@
       <i class="bi bi-speedometer2"></i> Dashboard
     </a>
 
-{% if current_user.has_droit('participants') or current_user.has_droit('competition') %}
+{% if current_user.has_droit('participants') or current_user.has_droit('competition') or current_user.has_droit('organisation') %}
     <div class="nav-section mt-2">Participants</div>
     <a href="{{ url_for('participants_list') }}" class="nav-link {% if 'participant' in request.endpoint %}active{% endif %}">
       <i class="bi bi-people-fill"></i> Gymnastes
@@ -54,14 +54,14 @@
     </a>
     {% endif %}
 
-{% if current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication') %}
+{% if current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication') or current_user.has_droit('organisation') %}
     <div class="nav-section mt-2">Compétition</div>
     <a href="{{ url_for('programme') }}" class="nav-link {% if 'programme' in request.endpoint %}active{% endif %}">
       <i class="bi bi-list-ol"></i> Programme
     </a>
     {% endif %}
 
-{% if current_user.has_droit('communication') %}
+{% if current_user.has_droit('communication') or current_user.has_droit('organisation') %}
     <div class="nav-section mt-2">Communication</div>
     <a href="{{ url_for('forum') }}" class="nav-link {% if 'forum' in request.endpoint %}active{% endif %}">
       <i class="bi bi-chat-dots-fill"></i> Forum
