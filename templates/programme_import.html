@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Import Programme{% endblock %}
+{% block page_title %}<i class="bi bi-upload me-2"></i>Importer le programme{% endblock %}
+{% block content %}
+<div class="fscf-card" style="max-width:520px;">
+  <div class="fscf-card-header pink"><i class="bi bi-file-earmark-excel me-2"></i>Import Excel</div>
+  <div class="fscf-card-body">
+    <p class="text-muted small">
+      Le fichier doit contenir les colonnes, dans l'ordre : <strong>Ordre, Jour, Heure début, Heure fin, Catégorie, Site, Nb gymnastes, Notes</strong>
+      (la première ligne d'en-têtes est ignorée). Vous pouvez exporter le programme actuel pour obtenir un modèle.
+    </p>
+    <form method="POST" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label">Fichier Excel (.xlsx)</label>
+        <input type="file" name="fichier" accept=".xlsx" class="form-control" required>
+      </div>
+      <button type="submit" class="btn-fscf"><i class="bi bi-upload me-2"></i>Importer</button>
+      <a href="{{ url_for('programme') }}" class="btn-fscf-outline">Annuler</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

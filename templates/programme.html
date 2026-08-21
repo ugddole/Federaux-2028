@@ -3,6 +3,8 @@
 {% block page_title %}<i class="bi bi-list-ol me-2"></i>Programme des concours{% endblock %}
 {% block topbar_actions %}
 {% if current_user.is_admin %}
+<a href="{{ url_for('programme_export') }}" class="btn-fscf-outline" title="Exporter"><i class="bi bi-download me-1"></i>Export</a>
+<a href="{{ url_for('programme_import') }}" class="btn-fscf-outline" title="Importer"><i class="bi bi-upload me-1"></i>Import</a>
 <a href="{{ url_for('programme_new') }}" class="btn-fscf"><i class="bi bi-plus-lg me-1"></i>Ajouter créneau</a>
 {% endif %}
 {% endblock %}
