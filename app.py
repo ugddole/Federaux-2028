@@ -766,6 +766,101 @@ def programme_del(id):
     flash('Créneau supprimé.','success')
     return redirect(url_for('programme'))
 
+@app.route('/programme/export')
+@login_required
+def programme_export():
+    if not current_user.is_admin: abort(403)
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill
+
+    conn = get_db()
+    items = conn.execute('SELECT * FROM programme ORDER BY ordre,heure_debut').fetchall()
+    conn.close()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Programme'
+
+    headers = ['Ordre', 'Jour', 'Heure début', 'Heure fin', 'Catégorie', 'Site', 'Nb gymnastes', 'Notes']
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = PatternFill('solid', fgColor='E2007A')
+
+    for it in items:
+        ws.append([
+            it['ordre'], it['jour'], it['heure_debut'], it['heure_fin'],
+            it['categorie'], it['site'], it['nb_gymnastes'], it['notes'] or '',
+        ])
+
+    for col in ws.columns:
+        length = max(len(str(c.value)) if c.value is not None else 0 for c in col)
+        ws.column_dimensions[col[0].column_letter].width = min(max(length + 2, 10), 50)
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                      download_name=f'programme_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+def parse_programme_file(file_storage):
+    import openpyxl
+    wb = openpyxl.load_workbook(file_storage, data_only=True)
+    ws = wb.worksheets[0]
+    rows = list(ws.iter_rows(values_only=True))
+
+    data = []
+    for row in rows[1:]:
+        if not row or not any(row):
+            continue
+        ordre, jour, hdebut, hfin, categorie, site, nb, notes = (list(row) + [None]*8)[:8]
+        categorie = str(categorie).strip() if categorie else ''
+        if not categorie:
+            continue
+        jour = str(jour).strip() if jour else ''
+        hdebut = str(hdebut).strip() if hdebut else ''
+        hfin = str(hfin).strip() if hfin else ''
+        site = str(site).strip() if site else ''
+        try:
+            nb = int(nb) if nb not in (None, '') else 0
+        except (ValueError, TypeError):
+            nb = 0
+        try:
+            ordre = int(ordre) if ordre not in (None, '') else 0
+        except (ValueError, TypeError):
+            ordre = 0
+        notes = str(notes).strip() if notes else ''
+        data.append(dict(ordre=ordre, jour=jour, heure_debut=hdebut, heure_fin=hfin,
+                          categorie=categorie, site=site, nb_gymnastes=nb, notes=notes))
+    return data
+
+@app.route('/programme/import', methods=['GET', 'POST'])
+@login_required
+def programme_import():
+    if not current_user.is_admin: abort(403)
+    if request.method == 'POST':
+        file = request.files.get('fichier')
+        if not file or not file.filename:
+            flash('Aucun fichier sélectionné.', 'warning')
+            return redirect(url_for('programme_import'))
+        try:
+            data = parse_programme_file(file)
+        except Exception as e:
+            flash(f'Erreur de lecture du fichier : {e}', 'danger')
+            return redirect(url_for('programme_import'))
+
+        conn = get_db()
+        for d in data:
+            conn.execute('''INSERT INTO programme (categorie,site,jour,heure_debut,heure_fin,nb_gymnastes,notes,ordre)
+                             VALUES (?,?,?,?,?,?,?,?)''',
+                (d['categorie'], d['site'], d['jour'], d['heure_debut'], d['heure_fin'],
+                 d['nb_gymnastes'], d['notes'], d['ordre']))
+        conn.commit(); conn.close()
+        flash(f"Import terminé — {len(data)} créneau(x) ajouté(s).", 'success')
+        return redirect(url_for('programme'))
+    return render_template('programme_import.html')
+
 # ── FORUM ─────────────────────────────────────────────────────────────────────
 @app.route('/forum')
 @login_required
