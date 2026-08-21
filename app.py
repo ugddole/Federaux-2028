@@ -593,7 +593,7 @@ def generate_badge(p_id):
     qr_path = os.path.join(QR_DIR, f'qr_{p_id}.png')
     _make_qr(token, qr_path)
 
-    pdf = FPDF(orientation='P', unit='mm', format='A6')
+    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
     pdf.set_auto_page_break(False)
     pdf.add_page()
     options = [
@@ -621,7 +621,7 @@ def generate_badges_participants_all(only_missing=True):
         conn.close()
         return None, 0
 
-    pdf = FPDF(orientation='P', unit='mm', format='A6')
+    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
     pdf.set_auto_page_break(False)
     ids = []
     for p in items:
@@ -666,7 +666,7 @@ def generate_badge_juge(j_id):
     qr_path = os.path.join(QR_DIR, f'qr_juge_{j_id}.png')
     _make_qr(token, qr_path)
 
-    pdf = FPDF(orientation='P', unit='mm', format='A6')
+    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
     pdf.set_auto_page_break(False)
     pdf.add_page()
     options = [
@@ -694,7 +694,7 @@ def generate_badges_juges_all(only_missing=True):
         conn.close()
         return None, 0
 
-    pdf = FPDF(orientation='P', unit='mm', format='A6')
+    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
     pdf.set_auto_page_break(False)
     ids = []
     for j in items:
@@ -740,7 +740,7 @@ def generate_badge_benevole(b_id):
     qr_path = os.path.join(QR_DIR, f'qr_benevole_{b_id}.png')
     _make_qr(token, qr_path)
 
-    pdf = FPDF(orientation='P', unit='mm', format='A6')
+    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
     pdf.set_auto_page_break(False)
     pdf.add_page()
     numero = f'B{2028}{b_id:04d}'
@@ -764,7 +764,7 @@ def generate_badges_benevoles_all(only_missing=True):
         conn.close()
         return None, 0
 
-    pdf = FPDF(orientation='P', unit='mm', format='A6')
+    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
     pdf.set_auto_page_break(False)
     ids = []
     for b in items:
