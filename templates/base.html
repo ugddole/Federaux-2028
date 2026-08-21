@@ -54,7 +54,7 @@
     </a>
     {% endif %}
 
-{% if current_user.has_droit('competition') or current_user.has_droit('participants') %}
+{% if current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication') %}
     <div class="nav-section mt-2">Compétition</div>
     <a href="{{ url_for('programme') }}" class="nav-link {% if 'programme' in request.endpoint %}active{% endif %}">
       <i class="bi bi-list-ol"></i> Programme
@@ -75,7 +75,7 @@
     </a>
     {% endif %}
  
-{% if current_user.has_droit('organisation') %}
+{% if current_user.has_droit('organisation') or current_user.has_droit('communication') %}
     <div class="nav-section mt-2">Organisation</div>
     <a href="{{ url_for('taches_list') }}" class="nav-link {% if 'tache' in request.endpoint %}active{% endif %}">
       <i class="bi bi-check2-square"></i> Tâches
@@ -83,9 +83,11 @@
     <a href="{{ url_for('taches_urgentes') }}" class="nav-link {% if request.endpoint=='taches_urgentes' %}active{% endif %}" style="color:#dc3545;font-weight:600;">
       <i class="bi bi-exclamation-triangle-fill"></i> Tâches à faire dans le mois
     </a>
+    {% if current_user.has_droit('organisation') %}
     <a href="{{ url_for('budget_list') }}" class="nav-link {% if 'budget' in request.endpoint %}active{% endif %}">
       <i class="bi bi-cash-coin"></i> Budget
     </a>
+    {% endif %}
     {% endif %}
     {% if current_user.is_admin %}
     <div class="nav-section mt-2">Administration</div>
