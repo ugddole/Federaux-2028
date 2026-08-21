@@ -48,7 +48,7 @@
     </a>
     {% endif %}
     
-{% if current_user.has_droit('organisation') %}
+{% if current_user.has_droit('organisation') or current_user.has_droit('communication') %}
     <a href="{{ url_for('planning') }}" class="nav-link {% if request.endpoint=='planning' %}active{% endif %}">
       <i class="bi bi-calendar3-week"></i> Planning missions
     </a>
