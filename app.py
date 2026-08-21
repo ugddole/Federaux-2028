@@ -1059,6 +1059,8 @@ def juges_list():
 @app.route('/juges/new', methods=['GET','POST'])
 @login_required
 def juge_new():
+    if current_user.role == 'juge':
+        abort(403)
     if not (current_user.is_admin or current_user.has_droit('juges')):
         abort(403)
     if request.method == 'POST':
@@ -1478,7 +1480,7 @@ def api_affecter():
 @app.route('/programme')
 @login_required
 def programme():
-    if not (current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication') or current_user.has_droit('organisation')): abort(403)
+    if not (current_user.role == 'juge' or current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication') or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     items = conn.execute('SELECT * FROM programme ORDER BY ordre,heure_debut').fetchall()
     conn.close()
@@ -1627,7 +1629,7 @@ def programme_import():
 @app.route('/forum')
 @login_required
 def forum():
-    if not (current_user.has_droit('communication') or current_user.has_droit('organisation')): abort(403)
+    if not (current_user.role == 'juge' or current_user.has_droit('communication') or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     cats = conn.execute('''
         SELECT fc.*,COUNT(fq.id) nb,SUM(CASE WHEN fq.is_resolved=0 THEN 1 ELSE 0 END) ouvertes
