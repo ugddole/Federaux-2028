@@ -60,14 +60,14 @@
     </a>
     {% endif %}
 
-{% if current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication') or current_user.has_droit('organisation') %}
+{% if current_user.role == 'juge' or current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication') or current_user.has_droit('organisation') %}
     <div class="nav-section mt-2">Compétition</div>
     <a href="{{ url_for('programme') }}" class="nav-link {% if 'programme' in request.endpoint %}active{% endif %}">
       <i class="bi bi-list-ol"></i> Programme
     </a>
     {% endif %}
 
-{% if current_user.has_droit('communication') or current_user.has_droit('organisation') %}
+{% if current_user.role == 'juge' or current_user.has_droit('communication') or current_user.has_droit('organisation') %}
     <div class="nav-section mt-2">Communication</div>
     <a href="{{ url_for('forum') }}" class="nav-link {% if 'forum' in request.endpoint %}active{% endif %}">
       <i class="bi bi-chat-dots-fill"></i> Forum
