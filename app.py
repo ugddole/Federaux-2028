@@ -890,6 +890,126 @@ def juge_badge(id):
     conn.commit(); conn.close()
     return send_file(path, as_attachment=True, download_name=f"badge_{j['prenom']}_{j['nom']}.pdf")
 
+@app.route('/juges/export')
+@login_required
+def juges_export():
+    if not current_user.is_admin: abort(403)
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill
+
+    conn = get_db()
+    items = conn.execute('''
+        SELECT j.*,u.nom,u.prenom,u.email FROM juges j
+        JOIN users u ON j.user_id=u.id ORDER BY u.nom,u.prenom
+    ''').fetchall()
+    conn.close()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Juges'
+
+    headers = ['Nom', 'Prénom', 'Email', 'Club/Comité', 'Région', 'Catégorie', 'Dossard',
+               'Repas S.Midi', 'Repas S.Soir', 'Soirée Juges', 'Collation D.Midi', 'Notes']
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = PatternFill('solid', fgColor='6A0DAD')
+
+    for j in items:
+        ws.append([
+            j['nom'], j['prenom'], j['email'], j['club'], j['region'], j['categorie'], j['numero_dossard'],
+            'x' if j['repas_samedi_midi'] else '',
+            'x' if j['repas_samedi_soir'] else '',
+            'x' if j['soiree_juges'] else '',
+            'x' if j['collation_dimanche_midi'] else '',
+            j['notes'] or '',
+        ])
+
+    for col in ws.columns:
+        length = max(len(str(c.value)) if c.value is not None else 0 for c in col)
+        ws.column_dimensions[col[0].column_letter].width = min(max(length + 2, 10), 45)
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                      download_name=f'juges_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+def parse_juges_file(file_storage):
+    import openpyxl
+    wb = openpyxl.load_workbook(file_storage, data_only=True)
+    ws = wb.worksheets[0]
+    rows = list(ws.iter_rows(values_only=True))
+
+    def is_true(v):
+        return str(v).strip().lower() in ('x', 'oui', '1', 'vrai', 'true') if v is not None else False
+
+    data = []
+    for row in rows[1:]:
+        if not row or not any(row):
+            continue
+        nom, prenom, email, club, region, categorie, dossard, r_midi, r_soir, soiree, coll, notes = (list(row) + [None]*12)[:12]
+        email = str(email).strip().lower() if email else ''
+        nom = str(nom).strip() if nom else ''
+        prenom = str(prenom).strip() if prenom else ''
+        if not email or not nom or not prenom:
+            continue
+        data.append(dict(
+            nom=nom, prenom=prenom, email=email,
+            club=str(club).strip() if club else '',
+            region=str(region).strip() if region else '',
+            categorie=str(categorie).strip() if categorie else (JUGE_CATEGORIES[0]),
+            dossard=str(dossard).strip() if dossard else '',
+            repas_samedi_midi=1 if is_true(r_midi) else 0,
+            repas_samedi_soir=1 if is_true(r_soir) else 0,
+            soiree_juges=1 if is_true(soiree) else 0,
+            collation_dimanche_midi=1 if is_true(coll) else 0,
+            notes=str(notes).strip() if notes else '',
+        ))
+    return data
+
+@app.route('/juges/import', methods=['GET', 'POST'])
+@login_required
+def juges_import():
+    if not current_user.is_admin: abort(403)
+    if request.method == 'POST':
+        file = request.files.get('fichier')
+        if not file or not file.filename:
+            flash('Aucun fichier sélectionné.', 'warning')
+            return redirect(url_for('juges_import'))
+        try:
+            data = parse_juges_file(file)
+        except Exception as e:
+            flash(f'Erreur de lecture du fichier : {e}', 'danger')
+            return redirect(url_for('juges_import'))
+
+        conn = get_db()
+        ok, skip = 0, 0
+        for d in data:
+            try:
+                conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,must_change_password) VALUES (?,?,?,?,?,1)',
+                    (d['email'], generate_password_hash('dole2028'), d['nom'], d['prenom'], 'juge'))
+                uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+                token = str(uuid.uuid4())
+                count = conn.execute('SELECT COUNT(*) FROM juges').fetchone()[0]
+                dossard = d['dossard'] or f'J{2028}{count+1:04d}'
+                conn.execute('''INSERT INTO juges
+                    (user_id,club,region,categorie,numero_dossard,qr_token,notes,
+                     repas_samedi_midi,repas_samedi_soir,soiree_juges,collation_dimanche_midi)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+                    (uid, d['club'], d['region'], d['categorie'], dossard, token, d['notes'],
+                     d['repas_samedi_midi'], d['repas_samedi_soir'], d['soiree_juges'], d['collation_dimanche_midi']))
+                conn.commit()
+                ok += 1
+            except sqlite3.IntegrityError:
+                conn.rollback()
+                skip += 1
+        conn.close()
+        flash(f"Import terminé — {ok} juge(s) ajouté(s), {skip} ignoré(s) (email ou dossard déjà utilisé).", 'success')
+        return redirect(url_for('juges_list'))
+    return render_template('juges_import.html')
+
 # ── BÉNÉVOLES ─────────────────────────────────────────────────────────────────
 @app.route('/benevoles')
 @login_required
