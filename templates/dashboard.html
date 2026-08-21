@@ -1,147 +1,141 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}<i class="bi bi-speedometer2 me-2"></i>Dashboard{% endblock %}
+
 {% block content %}
-
-<div class="dashboard-container">
-  <!-- Accueil -->
-  <div class="fscf-card mb-4">
-    <div class="fscf-card-header green">
-      <i class="bi bi-hand-thumbs-up me-2"></i>Bienvenue {{ current_user.full_name }}
-    </div>
-    <div class="fscf-card-body">
-      <p class="mb-0">Vous êtes connecté à l'application <strong>Dole 2028</strong>. Naviguez dans les menus pour accéder aux différents modules.</p>
-    </div>
+<!-- Bandeau photo de Dole -->
+<div class="dashboard-hero" style="background-image:url('{{ url_for('static', filename='img/port-dole.jpg') }}');">
+  <div class="dashboard-hero-content">
+    <div class="dashboard-hero-eyebrow">FSCF · Gymnastique artistique</div>
+    <h1 class="dashboard-hero-title">Manifestation Nationale — Dole 2028</h1>
+    <div class="dashboard-hero-sub">1er &amp; 2 juillet 2028 · Tableau de bord de l'organisation</div>
   </div>
-
-  <!-- Accès rapides -->
-  <div class="fscf-card mb-4">
-    <div class="fscf-card-header pink">
-      <i class="bi bi-lightning-charge me-2"></i>Accès rapides
-    </div>
-    <div class="fscf-card-body p-3">
-      <div class="quick-actions">
-        {% if current_user.has_droit('organisation') %}
-        <a href="{{ url_for('tache_new') }}" class="quick-btn"><i class="bi bi-plus-circle"></i> Nouvelle tâche</a>
-        {% endif %}
-        {% if current_user.has_droit('participants') %}
-        <a href="{{ url_for('participant_new') }}" class="quick-btn"><i class="bi bi-person-plus"></i> Ajouter participant</a>
-        {% endif %}
-        {% if current_user.has_droit('organisation') %}
-        <a href="{{ url_for('benevole_new') }}" class="quick-btn"><i class="bi bi-person-heart"></i> Ajouter bénévole</a>
-        {% endif %}
-        {% if current_user.role == 'juge' or current_user.has_droit('communication') %}
-        <a href="{{ url_for('forum_ask') }}" class="quick-btn"><i class="bi bi-chat-left-plus"></i> Poser une question</a>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-
-  <!-- Statistiques Participants -->
-  {% if current_user.has_droit('participants') %}
-  <div class="fscf-card mb-4">
-    <div class="fscf-card-header blue">
-      <i class="bi bi-people-fill me-2"></i>Participants
-    </div>
-    <div class="fscf-card-body">
-      <div class="row g-3">
-        <div class="col-md-6 col-lg-3">
-          <div class="stat-box">
-            <div class="stat-number">{{ stats.total_participants }}</div>
-            <div class="stat-label">Total</div>
-          </div>
-        </div>
-        {% for cat, count in stats.by_category.items() %}
-        <div class="col-md-6 col-lg-3">
-          <div class="stat-box">
-            <div class="stat-number">{{ count }}</div>
-            <div class="stat-label">{{ cat }}</div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      <div class="mt-3 text-center">
-        <a href="{{ url_for('participants_list') }}" class="btn-fscf-outline">Voir tous les participants</a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Statistiques Compétition -->
-  {% if current_user.role == 'juge' or current_user.has_droit('competition') %}
-  <div class="fscf-card mb-4">
-    <div class="fscf-card-header pink">
-      <i class="bi bi-list-ol me-2"></i>Programme
-    </div>
-    <div class="fscf-card-body">
-      <p class="text-muted mb-3">Vue d'ensemble du programme des compétitions</p>
-      <div class="mt-3 text-center">
-        <a href="{{ url_for('programme') }}" class="btn-fscf-outline">Voir le programme</a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Forum / Communication -->
-  {% if current_user.role == 'juge' or current_user.has_droit('communication') %}
-  <div class="fscf-card mb-4">
-    <div class="fscf-card-header green">
-      <i class="bi bi-chat-dots-fill me-2"></i>Forum
-    </div>
-    <div class="fscf-card-body">
-      <p class="text-muted mb-3">Consultez les questions et réponses</p>
-      <div class="mt-3 text-center">
-        <a href="{{ url_for('forum') }}" class="btn-fscf-outline">Voir le forum</a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Organisation / Tâches -->
-  {% if current_user.has_droit('organisation') %}
-  <div class="fscf-card mb-4">
-    <div class="fscf-card-header purple">
-      <i class="bi bi-check2-square me-2"></i>Tâches à faire dans le mois
-    </div>
-    <div class="fscf-card-body">
-      <div class="stat-box">
-        <div class="stat-number" style="color:#dc3545;">{{ stats.taches_urgentes }}</div>
-        <div class="stat-label">Tâches urgentes</div>
-      </div>
-      <div class="mt-3 text-center">
-        <a href="{{ url_for('taches_urgentes') }}" class="btn-fscf">Voir les tâches urgentes</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="fscf-card mb-4">
-    <div class="fscf-card-header orange">
-      <i class="bi bi-calendar3-week me-2"></i>Planning missions
-    </div>
-    <div class="fscf-card-body">
-      <p class="text-muted mb-3">Gérez les missions des bénévoles</p>
-      <div class="mt-3 text-center">
-        <a href="{{ url_for('planning') }}" class="btn-fscf-outline">Voir le planning</a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Administration -->
-  {% if current_user.is_admin %}
-  <div class="fscf-card mb-4">
-    <div class="fscf-card-header danger">
-      <i class="bi bi-shield-lock me-2"></i>Administration
-    </div>
-    <div class="fscf-card-body">
-      <p class="text-muted mb-3">Accès aux paramètres administratifs</p>
-      <div class="mt-3 text-center">
-        <a href="{{ url_for('admin') }}" class="btn-fscf-outline">Voir l'administration</a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
 </div>
 
+<!-- Stats -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4 col-lg-2">
+    <div class="stat-card">
+      <div class="stat-icon">🤸</div>
+      <div><div class="stat-number">{{ stats.total_participants }}</div><div class="stat-label">Gymnastes</div></div>
+    </div>
+  </div>
+  <div class="col-md-4 col-lg-2">
+    <div class="stat-card purple">
+      <div class="stat-icon">🏅</div>
+      <div><div class="stat-number">{{ stats.juges }}</div><div class="stat-label">Juges</div></div>
+    </div>
+  </div>
+  <div class="col-md-4 col-lg-2">
+    <div class="stat-card green">
+      <div class="stat-icon">🙋</div>
+      <div><div class="stat-number">{{ stats.benevoles }}</div><div class="stat-label">Bénévoles</div></div>
+    </div>
+  </div>
+  <div class="col-md-4 col-lg-2">
+    <div class="stat-card blue">
+      <div class="stat-icon">📋</div>
+      <div><div class="stat-number">{{ stats.missions }}</div><div class="stat-label">Missions</div></div>
+    </div>
+  </div>
+  <div class="col-md-4 col-lg-2">
+    <div class="stat-card navy">
+      <div class="stat-icon">🪪</div>
+      <div><div class="stat-number">{{ stats.badges }}</div><div class="stat-label">Badges générés</div></div>
+    </div>
+  </div>
+  <div class="col-md-4 col-lg-2">
+    <div class="stat-card purple">
+      <div class="stat-icon">💬</div>
+      <div><div class="stat-number">{{ stats.questions }}</div><div class="stat-label">Questions forum</div></div>
+    </div>
+  </div>
+  <div class="col-md-4 col-lg-2">
+    <div class="stat-card green">
+      <div class="stat-icon">📡</div>
+      <div><div class="stat-number">{{ stats.scans }}</div><div class="stat-label">Scans auj.</div></div>
+    </div>
+  </div>
+  <div class="col-md-4 col-lg-2">
+    <div class="stat-card navy">
+      <div class="stat-icon">✅</div>
+      <div><div class="stat-number">{{ stats.taches }}</div><div class="stat-label">Tâches</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Accès rapides -->
+  <div class="col-lg-4">
+    <div class="fscf-card">
+      <div class="fscf-card-header"><i class="bi bi-lightning-fill me-2"></i>Accès rapides</div>
+      <div class="fscf-card-body d-grid gap-2">
+        {% if current_user.has_droit('competition') %}
+        <a href="{{ url_for('participant_new') }}" class="btn-fscf text-center text-decoration-none py-2">
+          <i class="bi bi-person-plus-fill me-2"></i>Nouveau participant
+        </a>
+        {% endif %}
+        {% if current_user.has_droit('juges') %}
+        <a href="{{ url_for('juge_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#6a0dad;color:#6a0dad;">
+          <i class="bi bi-award-fill me-2"></i>Nouveau juge
+        </a>
+        {% endif %}
+        {% if current_user.has_droit('organisation') %}
+        <a href="{{ url_for('benevole_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;">
+          <i class="bi bi-person-heart me-2"></i>Nouveau bénévole
+        </a>
+        {% endif %}
+        {% if current_user.has_droit('competition') or current_user.has_droit('organisation') or current_user.has_droit('juges') %}
+        <a href="{{ url_for('scanner') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#0066CC;color:#0066CC;">
+          <i class="bi bi-qr-code-scan me-2"></i>Scanner un badge
+        </a>
+        {% endif %}
+        {% if current_user.has_droit('participants') or current_user.has_droit('competition') or current_user.has_droit('communication') or current_user.has_droit('organisation') %}
+        <a href="{{ url_for('forum_ask') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#009944;color:#009944;">
+          <i class="bi bi-chat-dots me-2"></i>Poser une question
+        </a>
+        {% endif %}
+        {% if current_user.has_droit('communication') or current_user.has_droit('organisation') %}
+        <a href="{{ url_for('tache_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#003366;color:#003366;">
+          <i class="bi bi-check2-square me-2"></i>Nouvelle tâche
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Derniers scans -->
+  <div class="col-lg-8">
+    <div class="fscf-card">
+      <div class="fscf-card-header"><i class="bi bi-clock-history me-2"></i>Derniers accès scannés</div>
+      <div class="fscf-card-body p-0">
+        {% if logs %}
+        <table class="fscf-table">
+          <thead><tr>
+            <th>Heure</th><th>Participant</th><th>Catégorie</th><th>Dossard</th><th>Site</th><th>Statut</th>
+          </tr></thead>
+          <tbody>
+          {% for l in logs %}
+          <tr>
+            <td style="font-size:11px;color:#888;">{{ l.timestamp[11:16] }}</td>
+            <td><strong>{{ l.prenom }} {{ l.nom }}</strong></td>
+            <td><span style="font-size:11px;">{{ l.categorie }}</span></td>
+            <td><code>{{ l.numero_dossard }}</code></td>
+            <td style="font-size:11px;">{{ l.site }}</td>
+            <td>
+              {% if l.statut == 'ok' %}<span class="badge bg-success">OK</span>
+              {% elif l.statut == 'deja_scanne' %}<span class="badge bg-warning text-dark">Déjà scanné</span>
+              {% else %}<span class="badge bg-danger">Invalide</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="p-4 text-center text-muted"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Aucun scan aujourd'hui</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
