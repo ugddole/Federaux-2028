@@ -236,6 +236,12 @@ def migrate_db():
         conn.commit()
     except Exception:
         pass
+    for col in ('repas_samedi_midi', 'repas_samedi_soir', 'gala', 'collation_dimanche_midi'):
+        try:
+            c.execute(f"ALTER TABLE participants ADD COLUMN {col} INTEGER DEFAULT 0")
+            conn.commit()
+        except Exception:
+            pass
 
     if not c.execute("SELECT id FROM users WHERE email='admin@dole2028.fr'").fetchone():
         c.execute("INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)",
@@ -339,7 +345,7 @@ def generate_badge(p_id):
     qr.make(fit=True)
     qr.make_image(fill_color='#1a1a2e', back_color='white').save(qr_path)
 
-    pdf = FPDF(orientation='P', unit='mm', format=(86, 125))
+    pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
     pdf.add_page()
     pdf.set_auto_page_break(False)
 
@@ -385,15 +391,40 @@ def generate_badge(p_id):
     pdf.set_xy(3, 67)
     pdf.cell(80, 5, f"Dossard N° {p['numero_dossard']}", align='C')
 
-    pdf.image(qr_path, x=23, y=75, w=40, h=40)
+    # ── Options repas / gala ────────────────────────────────────────────────
+    options = [
+        ('S.MIDI', bool(p['repas_samedi_midi']), (226, 0, 122)),
+        ('S.SOIR', bool(p['repas_samedi_soir']), (0, 102, 204)),
+        ('GALA', bool(p['gala']), (106, 13, 173)),
+        ('D.MIDI', bool(p['collation_dimanche_midi']), (0, 153, 68)),
+    ]
+    pill_w, pill_h, gap = 18.5, 7, 1.33
+    x = 3
+    y_pills = 76
+    for label, active, color in options:
+        if active:
+            pdf.set_fill_color(*color)
+            pdf.rect(x, y_pills, pill_w, pill_h, 'F')
+            pdf.set_text_color(255, 255, 255)
+        else:
+            pdf.set_draw_color(210, 210, 210)
+            pdf.set_line_width(0.2)
+            pdf.rect(x, y_pills, pill_w, pill_h)
+            pdf.set_text_color(190, 190, 190)
+        pdf.set_font('Helvetica', 'B', 6.5)
+        pdf.set_xy(x, y_pills + 2)
+        pdf.cell(pill_w, 4, label, align='C')
+        x += pill_w + gap
+
+    pdf.image(qr_path, x=23, y=87, w=40, h=40)
 
     pdf.set_text_color(160, 160, 160)
     pdf.set_font('Helvetica', '', 6)
-    pdf.set_xy(3, 117)
+    pdf.set_xy(3, 129)
     pdf.cell(80, 4, 'Scanner ce badge pour valider l\'acces', align='C')
 
     pdf.set_fill_color(226, 0, 122)
-    pdf.rect(0, 121, 86, 4, 'F')
+    pdf.rect(0, 133, 86, 4, 'F')
 
     out = os.path.join(BADGES_DIR, f'badge_{p_id}.pdf')
     pdf.output(out)
@@ -535,8 +566,15 @@ def participant_new():
             token = str(uuid.uuid4())
             count = conn.execute('SELECT COUNT(*) FROM participants').fetchone()[0]
             dossard = f.get('dossard','').strip() or f'D{2028}{count+1:04d}'
-            conn.execute('INSERT INTO participants (user_id,club,region,categorie,numero_dossard,qr_token,notes) VALUES (?,?,?,?,?,?,?)',
-                (uid, f['club'].strip(), f.get('region','').strip(), f['categorie'].strip(), dossard, token, f.get('notes','')))
+            conn.execute('''INSERT INTO participants
+                (user_id,club,region,categorie,numero_dossard,qr_token,notes,
+                 repas_samedi_midi,repas_samedi_soir,gala,collation_dimanche_midi)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+                (uid, f['club'].strip(), f.get('region','').strip(), f['categorie'].strip(), dossard, token, f.get('notes',''),
+                 1 if f.get('repas_samedi_midi') else 0,
+                 1 if f.get('repas_samedi_soir') else 0,
+                 1 if f.get('gala') else 0,
+                 1 if f.get('collation_dimanche_midi') else 0))
             pid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.commit(); conn.close()
             flash(f'Participant créé — Dossard : {dossard}', 'success')
@@ -570,8 +608,14 @@ def participant_edit(id):
     if request.method == 'POST':
         f = request.form
         conn.execute('UPDATE users SET nom=?,prenom=? WHERE id=?',(f['nom'],f['prenom'],p['user_id']))
-        conn.execute('UPDATE participants SET club=?,region=?,categorie=?,numero_dossard=?,notes=? WHERE id=?',
-            (f['club'],f.get('region',''),f['categorie'],f['dossard'],f.get('notes',''),id))
+        conn.execute('''UPDATE participants SET club=?,region=?,categorie=?,numero_dossard=?,notes=?,
+                        repas_samedi_midi=?,repas_samedi_soir=?,gala=?,collation_dimanche_midi=? WHERE id=?''',
+            (f['club'],f.get('region',''),f['categorie'],f['dossard'],f.get('notes',''),
+             1 if f.get('repas_samedi_midi') else 0,
+             1 if f.get('repas_samedi_soir') else 0,
+             1 if f.get('gala') else 0,
+             1 if f.get('collation_dimanche_midi') else 0,
+             id))
         conn.commit(); conn.close()
         flash('Participant mis à jour.','success')
         return redirect(url_for('participant_detail', id=id))
