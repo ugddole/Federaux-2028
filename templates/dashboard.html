@@ -31,7 +31,7 @@
         <a href="{{ url_for('benevole_new') }}" class="quick-btn"><i class="bi bi-person-heart"></i> Ajouter bénévole</a>
         {% endif %}
         {% if current_user.has_droit('communication') %}
-        <a href="{{ url_for('forum_question_new') }}" class="quick-btn"><i class="bi bi-chat-left-plus"></i> Poser une question</a>
+        <a href="{{ url_for('forum_ask') }}" class="quick-btn"><i class="bi bi-chat-left-plus"></i> Poser une question</a>
         {% endif %}
       </div>
     </div>
