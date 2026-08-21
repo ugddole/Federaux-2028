@@ -1173,7 +1173,7 @@ def _editable_categories(conn):
 @app.route('/taches/urgentes')
 @login_required
 def taches_urgentes():
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     taches = conn.execute('''
         SELECT t.*, m.nom mission_nom, m.couleur mission_couleur, u.nom resp_nom, u.prenom resp_prenom
@@ -1204,7 +1204,7 @@ def taches_urgentes():
 @app.route('/taches')
 @login_required
 def taches_list():
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     taches = conn.execute('''
         SELECT t.*, m.nom mission_nom, m.couleur mission_couleur, u.nom resp_nom, u.prenom resp_prenom
@@ -1233,7 +1233,7 @@ def _get_responsables_taches(conn):
 @app.route('/taches/new', methods=['GET','POST'])
 @login_required
 def tache_new():
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     missions = conn.execute('SELECT * FROM missions ORDER BY jour, heure_debut').fetchall()
     responsables = _get_responsables_taches(conn)
@@ -1265,7 +1265,7 @@ def tache_new():
 @app.route('/taches/<int:id>')
 @login_required
 def tache_detail(id):
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     t = conn.execute('''
         SELECT t.*, u.nom resp_nom, u.prenom resp_prenom
@@ -1287,7 +1287,7 @@ def tache_detail(id):
 @app.route('/taches/<int:id>/edit', methods=['GET','POST'])
 @login_required
 def tache_edit(id):
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     t = conn.execute('SELECT * FROM taches WHERE id=?', (id,)).fetchone()
     if not t: abort(404)
@@ -1319,7 +1319,7 @@ def tache_edit(id):
 @app.route('/taches/<int:id>/delete', methods=['POST'])
 @login_required
 def tache_delete(id):
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     t = conn.execute('SELECT categorie FROM taches WHERE id=?', (id,)).fetchone()
     if not t: conn.close(); abort(404)
@@ -1334,7 +1334,7 @@ def tache_delete(id):
 @app.route('/taches/<int:id>/sous-tache', methods=['POST'])
 @login_required
 def sous_tache_new(id):
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     t = conn.execute('SELECT categorie FROM taches WHERE id=?', (id,)).fetchone()
     if not t: conn.close(); abort(404)
@@ -1352,7 +1352,7 @@ def sous_tache_new(id):
 @app.route('/sous-tache/<int:id>/toggle', methods=['POST'])
 @login_required
 def sous_tache_toggle(id):
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     st = conn.execute('''SELECT st.*, t.categorie FROM sous_taches st
         JOIN taches t ON st.tache_id = t.id WHERE st.id=?''', (id,)).fetchone()
@@ -1369,7 +1369,7 @@ def sous_tache_toggle(id):
 @app.route('/sous-tache/<int:id>/edit', methods=['POST'])
 @login_required
 def sous_tache_edit(id):
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     st = conn.execute('''SELECT st.*, t.categorie FROM sous_taches st
         JOIN taches t ON st.tache_id = t.id WHERE st.id=?''', (id,)).fetchone()
@@ -1389,7 +1389,7 @@ def sous_tache_edit(id):
 @app.route('/sous-tache/<int:id>/delete', methods=['POST'])
 @login_required
 def sous_tache_delete(id):
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     st = conn.execute('''SELECT st.*, t.categorie FROM sous_taches st
         JOIN taches t ON st.tache_id = t.id WHERE st.id=?''', (id,)).fetchone()
@@ -1459,7 +1459,7 @@ def _match_responsable(conn, txt):
 @app.route('/taches/import', methods=['GET', 'POST'])
 @login_required
 def taches_import():
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     if request.method == 'POST':
         f = request.files.get('file')
         if not f or not f.filename:
@@ -1493,7 +1493,7 @@ def taches_import():
 @app.route('/taches/import/confirm', methods=['POST'])
 @login_required
 def taches_import_confirm():
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     tmp_name = request.form.get('tmp_file', '')
     tmp_path = os.path.join(TMP_DIR, tmp_name)
     if not tmp_name or not os.path.exists(tmp_path):
@@ -1746,7 +1746,7 @@ from excel_export import build_export_workbook  # à ajouter en haut du fichier 
 @app.route('/taches/export')
 @login_required
 def taches_export():
-    if not current_user.is_staff:
+    if not (current_user.is_staff or current_user.has_droit('organisation')):
         abort(403)
     conn = get_db()
     taches = conn.execute('''
