@@ -1,7 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, abort
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3, qrcode, os, uuid, csv, json, unicodedata, tempfile, re
+import sqlite3, qrcode, os, uuid, csv, json, unicodedata, tempfile, re, shutil, threading, time, glob
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 from io import BytesIO, StringIO
 import base64
@@ -18,6 +21,19 @@ login_manager.login_message = 'Veuillez vous connecter.'
 login_manager.login_message_category = 'warning'
 
 DATABASE = os.environ.get('DATABASE_PATH', 'dole2028.db')
+BACKUPS_DIR = os.environ.get('BACKUPS_DIR', 'backups')
+os.makedirs(BACKUPS_DIR, exist_ok=True)
+BACKUP_INTERVAL_SECONDS = 3600  # sauvegarde automatique toutes les heures
+BACKUP_KEEP_COUNT = 72          # conserve les 72 dernières (3 jours à raison d'une/heure)
+
+# ── EMAIL (SMTP) ─────────────────────────────────────────────────────────────
+SMTP_HOST = os.environ.get('SMTP_HOST', '')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+SMTP_USER = os.environ.get('SMTP_USER', '')
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+SMTP_FROM = os.environ.get('SMTP_FROM', SMTP_USER)
+SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME', 'Dole 2028')
+EMAIL_ENABLED = bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
 BADGES_DIR = 'badges'
 QR_DIR = os.path.join('static', 'qr')
 TMP_DIR  = os.path.join('static', 'tmp')
@@ -30,6 +46,94 @@ def get_db():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
+
+PER_PAGE = 30
+
+def backup_db():
+    """Copie le fichier de base de données vers le dossier de sauvegardes, horodaté."""
+    try:
+        if not os.path.exists(DATABASE):
+            return None
+        stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        dest = os.path.join(BACKUPS_DIR, f'dole2028_{stamp}.db')
+        shutil.copy2(DATABASE, dest)
+        # purge des sauvegardes les plus anciennes au-delà de BACKUP_KEEP_COUNT
+        backups = sorted(glob.glob(os.path.join(BACKUPS_DIR, 'dole2028_*.db')))
+        for old in backups[:-BACKUP_KEEP_COUNT]:
+            try:
+                os.remove(old)
+            except OSError:
+                pass
+        return dest
+    except Exception as e:
+        print(f'[backup] échec de la sauvegarde : {e}')
+        return None
+
+def _backup_loop():
+    while True:
+        time.sleep(BACKUP_INTERVAL_SECONDS)
+        backup_db()
+
+def start_backup_thread():
+    # Remarque : en mode debug avec le reloader Flask, cette fonction peut être
+    # appelée deux fois (process parent + process enfant rechargé), ce qui démarre
+    # deux threads de sauvegarde redondants — sans conséquence (backup_db() est
+    # idempotente, juste un peu de travail disque en double toutes les heures).
+    t = threading.Thread(target=_backup_loop, daemon=True)
+    t.start()
+
+def send_email(to_email, subject, html_body):
+    """Envoie un email via SMTP. Retourne True/False. N'interrompt jamais l'appelant
+    en cas d'échec (compte créé même si l'email ne part pas) — juste loggé en console."""
+    if not EMAIL_ENABLED:
+        print(f'[email] SMTP non configuré — email à {to_email} non envoyé ("{subject}").')
+        return False
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = f'{SMTP_FROM_NAME} <{SMTP_FROM}>'
+        msg['To'] = to_email
+        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_FROM, [to_email], msg.as_string())
+        return True
+    except Exception as e:
+        print(f'[email] échec d\'envoi à {to_email} : {e}')
+        return False
+
+def send_email_async(to_email, subject, html_body):
+    """Envoie l'email dans un thread séparé pour ne jamais ralentir la réponse HTTP
+    (le SMTP peut être lent) ni faire échouer la création de compte."""
+    t = threading.Thread(target=send_email, args=(to_email, subject, html_body), daemon=True)
+    t.start()
+
+def send_welcome_email(email, prenom, nom, password, login_url):
+    subject = 'Bienvenue sur Dole 2028 — vos identifiants de connexion'
+    html = f'''
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
+      <div style="background:#E2007A;padding:20px;text-align:center;border-radius:10px 10px 0 0;">
+        <h1 style="color:#fff;margin:0;font-size:20px;">DOLE 2028</h1>
+        <p style="color:#fff;margin:4px 0 0;font-size:12px;">Manifestation Nationale FSCF</p>
+      </div>
+      <div style="background:#fff;padding:24px;border:1px solid #eee;border-top:none;border-radius:0 0 10px 10px;">
+        <p>Bonjour {prenom},</p>
+        <p>Un compte a été créé pour vous sur l'application <strong>Dole 2028</strong>. Voici vos identifiants de connexion :</p>
+        <table style="width:100%;background:#f8f9fa;border-radius:8px;padding:12px;margin:16px 0;border-collapse:collapse;">
+          <tr><td style="padding:6px 12px;color:#888;font-size:13px;">Email</td><td style="padding:6px 12px;font-weight:bold;">{email}</td></tr>
+          <tr><td style="padding:6px 12px;color:#888;font-size:13px;">Mot de passe</td><td style="padding:6px 12px;font-weight:bold;">{password}</td></tr>
+        </table>
+        <p style="font-size:13px;color:#888;">Pour des raisons de sécurité, il vous sera demandé de choisir un nouveau mot de passe dès votre première connexion.</p>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="{login_url}" style="background:#E2007A;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;">Se connecter</a>
+        </div>
+        <p style="font-size:12px;color:#aaa;">À bientôt à Dole !</p>
+      </div>
+    </div>
+    '''
+    send_email_async(email, subject, html)
 
 def init_db():
     conn = get_db()
@@ -364,24 +468,10 @@ def qr_to_base64(token):
     img.save(buf, 'PNG')
     return base64.b64encode(buf.getvalue()).decode()
 
-def generate_badge(p_id):
-    conn = get_db()
-    p = conn.execute('SELECT p.*,u.nom,u.prenom FROM participants p JOIN users u ON p.user_id=u.id WHERE p.id=?', (p_id,)).fetchone()
-    conn.close()
-    if not p:
-        return None
-
-    qr_path = os.path.join(QR_DIR, f'qr_{p_id}.png')
-    qr = qrcode.QRCode(version=1, box_size=8, border=2)
-    qr.add_data(p['qr_token'])
-    qr.make(fit=True)
-    qr.make_image(fill_color='#1a1a2e', back_color='white').save(qr_path)
-
-    pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
-    pdf.add_page()
-    pdf.set_auto_page_break(False)
-
-    pdf.set_fill_color(226, 0, 122)
+def _draw_badge_page(pdf, header_color, categorie, prenom, nom, club, numero_dossard, qr_path,
+                      options):
+    """Dessine une page de badge sur un objet FPDF déjà positionné (add_page() déjà appelé)."""
+    pdf.set_fill_color(*header_color)
     pdf.rect(0, 0, 86, 28, 'F')
     pdf.set_text_color(255, 255, 255)
     pdf.set_font('Helvetica', 'B', 12)
@@ -398,38 +488,32 @@ def generate_badge(p_id):
     pdf.set_text_color(255, 255, 255)
     pdf.set_font('Helvetica', 'B', 8)
     pdf.set_xy(3, 31)
-    pdf.cell(80, 5, str(p['categorie']).upper(), align='C')
+    pdf.cell(80, 5, str(categorie).upper(), align='C')
 
     pdf.set_text_color(26, 26, 46)
     pdf.set_font('Helvetica', 'B', 15)
     pdf.set_xy(3, 40)
-    pdf.cell(80, 8, str(p['prenom']).upper(), align='C')
+    pdf.cell(80, 8, str(prenom).upper(), align='C')
     pdf.set_font('Helvetica', 'B', 13)
     pdf.set_xy(3, 49)
-    pdf.cell(80, 7, str(p['nom']).upper(), align='C')
+    pdf.cell(80, 7, str(nom).upper(), align='C')
 
     pdf.set_font('Helvetica', '', 9)
     pdf.set_text_color(80, 80, 80)
     pdf.set_xy(3, 58)
-    club = str(p['club'])
-    if len(club) > 35:
-        club = club[:33] + '...'
-    pdf.cell(80, 5, club, align='C')
+    club_txt = str(club)
+    if len(club_txt) > 35:
+        club_txt = club_txt[:33] + '...'
+    pdf.cell(80, 5, club_txt, align='C')
 
     pdf.set_fill_color(245, 245, 245)
     pdf.rect(3, 65, 80, 8, 'F')
-    pdf.set_text_color(226, 0, 122)
+    pdf.set_text_color(*header_color)
     pdf.set_font('Helvetica', 'B', 11)
     pdf.set_xy(3, 67)
-    pdf.cell(80, 5, f"Dossard N° {p['numero_dossard']}", align='C')
+    pdf.cell(80, 5, f"Dossard N° {numero_dossard}", align='C')
 
-    # ── Options repas / gala ────────────────────────────────────────────────
-    options = [
-        ('S.MIDI', bool(p['repas_samedi_midi']), (226, 0, 122)),
-        ('S.SOIR', bool(p['repas_samedi_soir']), (0, 102, 204)),
-        ('GALA', bool(p['gala']), (106, 13, 173)),
-        ('D.MIDI', bool(p['collation_dimanche_midi']), (0, 153, 68)),
-    ]
+    # ── Options repas / gala/soirée ──────────────────────────────────────────
     pill_w, pill_h, gap = 18.5, 7, 1.33
     x = 3
     y_pills = 76
@@ -455,12 +539,75 @@ def generate_badge(p_id):
     pdf.set_xy(3, 129)
     pdf.cell(80, 4, 'Scanner ce badge pour valider l\'acces', align='C')
 
-    pdf.set_fill_color(226, 0, 122)
+    pdf.set_fill_color(*header_color)
     pdf.rect(0, 133, 86, 4, 'F')
+
+def _make_qr(token, path):
+    qr = qrcode.QRCode(version=1, box_size=8, border=2)
+    qr.add_data(token)
+    qr.make(fit=True)
+    qr.make_image(fill_color='#1a1a2e', back_color='white').save(path)
+
+def generate_badge(p_id):
+    conn = get_db()
+    p = conn.execute('SELECT p.*,u.nom,u.prenom FROM participants p JOIN users u ON p.user_id=u.id WHERE p.id=?', (p_id,)).fetchone()
+    conn.close()
+    if not p:
+        return None
+
+    qr_path = os.path.join(QR_DIR, f'qr_{p_id}.png')
+    _make_qr(p['qr_token'], qr_path)
+
+    pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
+    pdf.set_auto_page_break(False)
+    pdf.add_page()
+    options = [
+        ('S.MIDI', bool(p['repas_samedi_midi']), (226, 0, 122)),
+        ('S.SOIR', bool(p['repas_samedi_soir']), (0, 102, 204)),
+        ('GALA', bool(p['gala']), (106, 13, 173)),
+        ('D.MIDI', bool(p['collation_dimanche_midi']), (0, 153, 68)),
+    ]
+    _draw_badge_page(pdf, (226, 0, 122), p['categorie'], p['prenom'], p['nom'], p['club'], p['numero_dossard'], qr_path, options)
 
     out = os.path.join(BADGES_DIR, f'badge_{p_id}.pdf')
     pdf.output(out)
     return out
+
+def generate_badges_participants_all(only_missing=True):
+    """Génère un unique PDF multi-pages avec les badges de tous les participants
+    (ou seulement ceux sans badge encore généré si only_missing=True)."""
+    conn = get_db()
+    sql = "SELECT p.*,u.nom,u.prenom FROM participants p JOIN users u ON p.user_id=u.id"
+    if only_missing:
+        sql += " WHERE p.badge_generated=0"
+    sql += " ORDER BY u.nom,u.prenom"
+    items = conn.execute(sql).fetchall()
+    if not items:
+        conn.close()
+        return None, 0
+
+    pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
+    pdf.set_auto_page_break(False)
+    ids = []
+    for p in items:
+        qr_path = os.path.join(QR_DIR, f'qr_{p["id"]}.png')
+        _make_qr(p['qr_token'], qr_path)
+        pdf.add_page()
+        options = [
+            ('S.MIDI', bool(p['repas_samedi_midi']), (226, 0, 122)),
+            ('S.SOIR', bool(p['repas_samedi_soir']), (0, 102, 204)),
+            ('GALA', bool(p['gala']), (106, 13, 173)),
+            ('D.MIDI', bool(p['collation_dimanche_midi']), (0, 153, 68)),
+        ]
+        _draw_badge_page(pdf, (226, 0, 122), p['categorie'], p['prenom'], p['nom'], p['club'], p['numero_dossard'], qr_path, options)
+        ids.append(p['id'])
+
+    conn.execute(f"UPDATE participants SET badge_generated=1 WHERE id IN ({','.join('?'*len(ids))})", ids)
+    conn.commit(); conn.close()
+
+    out = os.path.join(BADGES_DIR, f'badges_participants_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
+    pdf.output(out)
+    return out, len(ids)
 
 def generate_badge_juge(j_id):
     conn = get_db()
@@ -470,95 +617,58 @@ def generate_badge_juge(j_id):
         return None
 
     qr_path = os.path.join(QR_DIR, f'qr_juge_{j_id}.png')
-    qr = qrcode.QRCode(version=1, box_size=8, border=2)
-    qr.add_data(j['qr_token'])
-    qr.make(fit=True)
-    qr.make_image(fill_color='#1a1a2e', back_color='white').save(qr_path)
+    _make_qr(j['qr_token'], qr_path)
 
     pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
-    pdf.add_page()
     pdf.set_auto_page_break(False)
-
-    pdf.set_fill_color(106, 13, 173)
-    pdf.rect(0, 0, 86, 28, 'F')
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font('Helvetica', 'B', 12)
-    pdf.set_xy(3, 5)
-    pdf.cell(80, 7, 'DOLE 2028', align='C')
-    pdf.set_font('Helvetica', '', 7)
-    pdf.set_xy(3, 13)
-    pdf.cell(80, 4, 'Manifestation Nationale FSCF', align='C')
-    pdf.set_xy(3, 18)
-    pdf.cell(80, 4, 'Gymnastique Artistique Feminine', align='C')
-
-    pdf.set_fill_color(26, 26, 46)
-    pdf.rect(0, 29, 86, 8, 'F')
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font('Helvetica', 'B', 8)
-    pdf.set_xy(3, 31)
-    pdf.cell(80, 5, str(j['categorie']).upper(), align='C')
-
-    pdf.set_text_color(26, 26, 46)
-    pdf.set_font('Helvetica', 'B', 15)
-    pdf.set_xy(3, 40)
-    pdf.cell(80, 8, str(j['prenom']).upper(), align='C')
-    pdf.set_font('Helvetica', 'B', 13)
-    pdf.set_xy(3, 49)
-    pdf.cell(80, 7, str(j['nom']).upper(), align='C')
-
-    pdf.set_font('Helvetica', '', 9)
-    pdf.set_text_color(80, 80, 80)
-    pdf.set_xy(3, 58)
-    club = str(j['club'])
-    if len(club) > 35:
-        club = club[:33] + '...'
-    pdf.cell(80, 5, club, align='C')
-
-    pdf.set_fill_color(245, 245, 245)
-    pdf.rect(3, 65, 80, 8, 'F')
-    pdf.set_text_color(106, 13, 173)
-    pdf.set_font('Helvetica', 'B', 11)
-    pdf.set_xy(3, 67)
-    pdf.cell(80, 5, f"Dossard N° {j['numero_dossard']}", align='C')
-
-    # ── Options repas / soirée ──────────────────────────────────────────────
+    pdf.add_page()
     options = [
         ('S.MIDI', bool(j['repas_samedi_midi']), (226, 0, 122)),
         ('S.SOIR', bool(j['repas_samedi_soir']), (0, 102, 204)),
         ('SOIREE', bool(j['soiree_juges']), (106, 13, 173)),
         ('D.MIDI', bool(j['collation_dimanche_midi']), (0, 153, 68)),
     ]
-    pill_w, pill_h, gap = 18.5, 7, 1.33
-    x = 3
-    y_pills = 76
-    for label, active, color in options:
-        if active:
-            pdf.set_fill_color(*color)
-            pdf.rect(x, y_pills, pill_w, pill_h, 'F')
-            pdf.set_text_color(255, 255, 255)
-        else:
-            pdf.set_draw_color(210, 210, 210)
-            pdf.set_line_width(0.2)
-            pdf.rect(x, y_pills, pill_w, pill_h)
-            pdf.set_text_color(190, 190, 190)
-        pdf.set_font('Helvetica', 'B', 6.5)
-        pdf.set_xy(x, y_pills + 2)
-        pdf.cell(pill_w, 4, label, align='C')
-        x += pill_w + gap
-
-    pdf.image(qr_path, x=23, y=87, w=40, h=40)
-
-    pdf.set_text_color(160, 160, 160)
-    pdf.set_font('Helvetica', '', 6)
-    pdf.set_xy(3, 129)
-    pdf.cell(80, 4, 'Scanner ce badge pour valider l\'acces', align='C')
-
-    pdf.set_fill_color(106, 13, 173)
-    pdf.rect(0, 133, 86, 4, 'F')
+    _draw_badge_page(pdf, (106, 13, 173), j['categorie'], j['prenom'], j['nom'], j['club'], j['numero_dossard'], qr_path, options)
 
     out = os.path.join(BADGES_DIR, f'badge_juge_{j_id}.pdf')
     pdf.output(out)
     return out
+
+def generate_badges_juges_all(only_missing=True):
+    """Génère un unique PDF multi-pages avec les badges de tous les juges
+    (ou seulement ceux sans badge encore généré si only_missing=True)."""
+    conn = get_db()
+    sql = "SELECT j.*,u.nom,u.prenom FROM juges j JOIN users u ON j.user_id=u.id"
+    if only_missing:
+        sql += " WHERE j.badge_generated=0"
+    sql += " ORDER BY u.nom,u.prenom"
+    items = conn.execute(sql).fetchall()
+    if not items:
+        conn.close()
+        return None, 0
+
+    pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
+    pdf.set_auto_page_break(False)
+    ids = []
+    for j in items:
+        qr_path = os.path.join(QR_DIR, f'qr_juge_{j["id"]}.png')
+        _make_qr(j['qr_token'], qr_path)
+        pdf.add_page()
+        options = [
+            ('S.MIDI', bool(j['repas_samedi_midi']), (226, 0, 122)),
+            ('S.SOIR', bool(j['repas_samedi_soir']), (0, 102, 204)),
+            ('SOIREE', bool(j['soiree_juges']), (106, 13, 173)),
+            ('D.MIDI', bool(j['collation_dimanche_midi']), (0, 153, 68)),
+        ]
+        _draw_badge_page(pdf, (106, 13, 173), j['categorie'], j['prenom'], j['nom'], j['club'], j['numero_dossard'], qr_path, options)
+        ids.append(j['id'])
+
+    conn.execute(f"UPDATE juges SET badge_generated=1 WHERE id IN ({','.join('?'*len(ids))})", ids)
+    conn.commit(); conn.close()
+
+    out = os.path.join(BADGES_DIR, f'badges_juges_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
+    pdf.output(out)
+    return out, len(ids)
 
 # ── AUTH ──────────────────────────────────────────────────────────────────────
 @app.route('/login', methods=['GET', 'POST'])
@@ -672,19 +782,24 @@ def participants_list():
     if not (current_user.has_droit('participants') or current_user.has_droit('competition') or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     q, cat = request.args.get('q',''), request.args.get('cat','')
-    sql = 'SELECT p.*,u.nom,u.prenom,u.email FROM participants p JOIN users u ON p.user_id=u.id WHERE 1=1'
+    page = max(1, request.args.get('page', 1, type=int))
+    where = ' WHERE 1=1'
     params = []
     if q:
-        sql += ' AND (u.nom LIKE ? OR u.prenom LIKE ? OR p.club LIKE ? OR p.numero_dossard LIKE ?)'
+        where += ' AND (u.nom LIKE ? OR u.prenom LIKE ? OR p.club LIKE ? OR p.numero_dossard LIKE ?)'
         params += [f'%{q}%']*4
     if cat:
-        sql += ' AND p.categorie=?'
+        where += ' AND p.categorie=?'
         params.append(cat)
-    sql += ' ORDER BY u.nom,u.prenom'
-    items = conn.execute(sql, params).fetchall()
+    total = conn.execute(f'SELECT COUNT(*) FROM participants p JOIN users u ON p.user_id=u.id{where}', params).fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = min(page, total_pages)
+    sql = f'SELECT p.*,u.nom,u.prenom,u.email FROM participants p JOIN users u ON p.user_id=u.id{where} ORDER BY u.nom,u.prenom LIMIT ? OFFSET ?'
+    items = conn.execute(sql, params + [PER_PAGE, (page-1)*PER_PAGE]).fetchall()
     cats = conn.execute('SELECT DISTINCT categorie FROM participants ORDER BY categorie').fetchall()
     conn.close()
-    return render_template('participants_list.html', items=items, cats=cats, q=q, cat=cat)
+    return render_template('participants_list.html', items=items, cats=cats, q=q, cat=cat,
+                            page=page, total_pages=total_pages, total=total)
 
 @app.route('/participants/new', methods=['GET','POST'])
 @login_required
@@ -693,10 +808,12 @@ def participant_new():
         abort(403)
     if request.method == 'POST':
         f = request.form
+        email = f['email'].strip().lower()
+        password = f.get('password','dole2028')
         conn = get_db()
         try:
             conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,must_change_password) VALUES (?,?,?,?,?,1)',
-                (f['email'].strip().lower(), generate_password_hash(f.get('password','dole2028')),
+                (email, generate_password_hash(password),
                  f['nom'].strip(), f['prenom'].strip(), 'participant'))
             uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             token = str(uuid.uuid4())
@@ -713,12 +830,13 @@ def participant_new():
                  1 if f.get('collation_dimanche_midi') else 0))
             pid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.commit(); conn.close()
+            send_welcome_email(email, f['prenom'].strip(), f['nom'].strip(), password, url_for('login', _external=True))
             flash(f'Participant créé — Dossard : {dossard}', 'success')
             return redirect(url_for('participant_detail', id=pid))
         except sqlite3.IntegrityError as e:
             conn.rollback(); conn.close()
             flash('Email ou dossard déjà utilisé.', 'danger')
-    return render_template('participant_form.html', action='new', item=None)
+    return render_template('participant_form.html', action='new', item=None, cats=PARTICIPANT_CATEGORIES)
 
 @app.route('/participants/<int:id>')
 @login_required
@@ -756,7 +874,7 @@ def participant_edit(id):
         flash('Participant mis à jour.','success')
         return redirect(url_for('participant_detail', id=id))
     conn.close()
-    return render_template('participant_form.html', action='edit', item=p)
+    return render_template('participant_form.html', action='edit', item=p, cats=PARTICIPANT_CATEGORIES)
 
 @app.route('/participants/<int:id>/delete', methods=['POST'])
 @login_required
@@ -782,7 +900,20 @@ def participant_badge(id):
     conn.commit(); conn.close()
     return send_file(path, as_attachment=True, download_name=f"badge_{p['prenom']}_{p['nom']}.pdf")
 
+@app.route('/participants/badges/all')
+@login_required
+def participants_badges_all():
+    if not (current_user.is_admin or current_user.has_droit('competition')): abort(403)
+    only_missing = request.args.get('all') != '1'
+    path, count = generate_badges_participants_all(only_missing=only_missing)
+    if not path:
+        flash('Aucun badge à générer (tous les participants ont déjà un badge).', 'warning')
+        return redirect(url_for('participants_list'))
+    flash(f'{count} badge(s) généré(s) dans un seul PDF.', 'success')
+    return send_file(path, as_attachment=True, download_name=os.path.basename(path))
+
 # ── JUGES ─────────────────────────────────────────────────────────────────────
+PARTICIPANT_CATEGORIES = ['Poussines / Benjamines', 'Minimes Féminines', 'Cadettes', 'Juniors Féminines', 'Séniors Féminines', 'Coach']
 JUGE_CATEGORIES = ['Juge Régional', 'Juge National', 'Juge International', 'Juge Fédéral']
 
 @app.route('/juges')
@@ -791,18 +922,23 @@ def juges_list():
     if not (current_user.has_droit('juges')): abort(403)
     conn = get_db()
     q, cat = request.args.get('q',''), request.args.get('cat','')
-    sql = 'SELECT j.*,u.nom,u.prenom,u.email FROM juges j JOIN users u ON j.user_id=u.id WHERE 1=1'
+    page = max(1, request.args.get('page', 1, type=int))
+    where = ' WHERE 1=1'
     params = []
     if q:
-        sql += ' AND (u.nom LIKE ? OR u.prenom LIKE ? OR j.club LIKE ?)'
+        where += ' AND (u.nom LIKE ? OR u.prenom LIKE ? OR j.club LIKE ?)'
         params += [f'%{q}%', f'%{q}%', f'%{q}%']
     if cat:
-        sql += ' AND j.categorie=?'
+        where += ' AND j.categorie=?'
         params.append(cat)
-    sql += ' ORDER BY u.nom,u.prenom'
-    items = conn.execute(sql, params).fetchall()
+    total = conn.execute(f'SELECT COUNT(*) FROM juges j JOIN users u ON j.user_id=u.id{where}', params).fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = min(page, total_pages)
+    sql = f'SELECT j.*,u.nom,u.prenom,u.email FROM juges j JOIN users u ON j.user_id=u.id{where} ORDER BY u.nom,u.prenom LIMIT ? OFFSET ?'
+    items = conn.execute(sql, params + [PER_PAGE, (page-1)*PER_PAGE]).fetchall()
     conn.close()
-    return render_template('juges_list.html', items=items, cats=JUGE_CATEGORIES, q=q, cat=cat)
+    return render_template('juges_list.html', items=items, cats=JUGE_CATEGORIES, q=q, cat=cat,
+                            page=page, total_pages=total_pages, total=total)
 
 @app.route('/juges/new', methods=['GET','POST'])
 @login_required
@@ -811,10 +947,12 @@ def juge_new():
         abort(403)
     if request.method == 'POST':
         f = request.form
+        email = f['email'].strip().lower()
+        password = f.get('password','dole2028')
         conn = get_db()
         try:
             conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,must_change_password) VALUES (?,?,?,?,?,1)',
-                (f['email'].strip().lower(), generate_password_hash(f.get('password','dole2028')),
+                (email, generate_password_hash(password),
                  f['nom'].strip(), f['prenom'].strip(), 'juge'))
             uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             token = str(uuid.uuid4())
@@ -831,6 +969,7 @@ def juge_new():
                  1 if f.get('collation_dimanche_midi') else 0))
             jid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.commit(); conn.close()
+            send_welcome_email(email, f['prenom'].strip(), f['nom'].strip(), password, url_for('login', _external=True))
             flash(f'Juge créé — Dossard : {dossard}', 'success')
             return redirect(url_for('juge_detail', id=jid))
         except sqlite3.IntegrityError:
@@ -900,6 +1039,18 @@ def juge_badge(id):
     j = conn.execute('SELECT u.nom,u.prenom FROM juges j JOIN users u ON j.user_id=u.id WHERE j.id=?',(id,)).fetchone()
     conn.commit(); conn.close()
     return send_file(path, as_attachment=True, download_name=f"badge_{j['prenom']}_{j['nom']}.pdf")
+
+@app.route('/juges/badges/all')
+@login_required
+def juges_badges_all():
+    if not (current_user.is_admin or current_user.has_droit('juges')): abort(403)
+    only_missing = request.args.get('all') != '1'
+    path, count = generate_badges_juges_all(only_missing=only_missing)
+    if not path:
+        flash('Aucun badge à générer (tous les juges ont déjà un badge).', 'warning')
+        return redirect(url_for('juges_list'))
+    flash(f'{count} badge(s) généré(s) dans un seul PDF.', 'success')
+    return send_file(path, as_attachment=True, download_name=os.path.basename(path))
 
 @app.route('/juges/export')
 @login_required
@@ -1026,14 +1177,18 @@ def juges_import():
 @login_required
 def benevoles_list():
     conn = get_db()
+    page = max(1, request.args.get('page', 1, type=int))
+    total = conn.execute('SELECT COUNT(*) FROM benevoles').fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = min(page, total_pages)
     items = conn.execute('''
         SELECT b.*,u.nom,u.prenom,u.email,u.droits,COUNT(a.id) nb
         FROM benevoles b JOIN users u ON b.user_id=u.id
         LEFT JOIN affectations a ON b.id=a.benevole_id
-        GROUP BY b.id ORDER BY u.nom,u.prenom
-    ''').fetchall()
+        GROUP BY b.id ORDER BY u.nom,u.prenom LIMIT ? OFFSET ?
+    ''', (PER_PAGE, (page-1)*PER_PAGE)).fetchall()
     conn.close()
-    return render_template('benevoles_list.html', items=items)
+    return render_template('benevoles_list.html', items=items, page=page, total_pages=total_pages, total=total)
 
 @app.route('/benevoles/new', methods=['GET','POST'])
 @login_required
@@ -1042,15 +1197,18 @@ def benevole_new():
     if request.method == 'POST':
         f = request.form
         droits = ','.join(request.form.getlist('droits'))
+        email = f['email'].strip().lower()
+        password = f.get('password','benevole2028')
         conn = get_db()
         try:
             conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,droits,must_change_password) VALUES (?,?,?,?,?,?,1)',
-                (f['email'].strip().lower(), generate_password_hash(f.get('password','benevole2028')),
+                (email, generate_password_hash(password),
                  f['nom'].strip(), f['prenom'].strip(), 'benevole', droits))
             uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.execute('INSERT INTO benevoles (user_id,telephone,tshirt,notes) VALUES (?,?,?,?)',
                 (uid, f.get('tel',''), f.get('tshirt','M'), f.get('notes','')))
             conn.commit(); conn.close()
+            send_welcome_email(email, f['prenom'].strip(), f['nom'].strip(), password, url_for('login', _external=True))
             flash(f"Bénévole {f['prenom']} {f['nom']} créé.", 'success')
             return redirect(url_for('benevoles_list'))
         except sqlite3.IntegrityError:
@@ -1416,6 +1574,8 @@ def forum_resolve(id):
 @app.route('/scanner')
 @login_required
 def scanner():
+    if not (current_user.is_staff or current_user.has_droit('competition') or current_user.has_droit('organisation') or current_user.has_droit('juges')):
+        abort(403)
     conn = get_db()
     logs = conn.execute('''
         SELECT al.*,u.nom,u.prenom,p.categorie,p.numero_dossard,p.club, 'participant' AS type
@@ -1433,6 +1593,8 @@ def scanner():
 @app.route('/api/scan', methods=['POST'])
 @login_required
 def api_scan():
+    if not (current_user.is_staff or current_user.has_droit('competition') or current_user.has_droit('organisation') or current_user.has_droit('juges')):
+        return jsonify(statut='invalide', message='Non autorisé'), 403
     d = request.get_json()
     token = (d.get('token') or '').strip()
     site  = d.get('site', 'Entrée principale')
@@ -1492,12 +1654,15 @@ def admin():
 def admin_responsable_new():
     if not current_user.is_admin: abort(403)
     f = request.form
+    email = f['email'].strip().lower()
+    password = f.get('password','dole2028')
     conn = get_db()
     try:
         conn.execute('INSERT INTO users (email,password_hash,nom,prenom,role,must_change_password) VALUES (?,?,?,?,?,1)',
-            (f['email'].strip().lower(), generate_password_hash(f.get('password','dole2028')),
+            (email, generate_password_hash(password),
              f['nom'].strip(), f['prenom'].strip(), 'responsable'))
         conn.commit()
+        send_welcome_email(email, f['prenom'].strip(), f['nom'].strip(), password, url_for('login', _external=True))
         flash(f"Responsable {f['prenom']} {f['nom']} créé.", 'success')
     except sqlite3.IntegrityError:
         conn.rollback()
@@ -1528,7 +1693,10 @@ def admin_reset(id):
     pwd = request.form.get('password','dole2028')
     conn = get_db()
     conn.execute('UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?',(generate_password_hash(pwd),id))
+    u = conn.execute('SELECT email,nom,prenom FROM users WHERE id=?',(id,)).fetchone()
     conn.commit(); conn.close()
+    if u:
+        send_welcome_email(u['email'], u['prenom'], u['nom'], pwd, url_for('login', _external=True))
     flash('Mot de passe réinitialisé.','success')
     return redirect(url_for('admin'))
 
@@ -1544,6 +1712,42 @@ def admin_user_delete(id):
     conn.commit(); conn.close()
     flash('Utilisateur supprimé.','success')
     return redirect(url_for('admin'))
+
+# ── SAUVEGARDE BASE DE DONNÉES ──────────────────────────────────────────────────
+@app.route('/admin/backup')
+@login_required
+def admin_backup():
+    if not current_user.is_admin: abort(403)
+    files = sorted(glob.glob(os.path.join(BACKUPS_DIR, 'dole2028_*.db')), reverse=True)
+    backups = [{
+        'name': os.path.basename(f),
+        'size_ko': round(os.path.getsize(f) / 1024, 1),
+        'date': datetime.fromtimestamp(os.path.getmtime(f)).strftime('%d/%m/%Y %H:%M'),
+    } for f in files]
+    return render_template('admin_backup.html', backups=backups,
+                            interval_min=BACKUP_INTERVAL_SECONDS // 60, keep=BACKUP_KEEP_COUNT)
+
+@app.route('/admin/backup/now', methods=['POST'])
+@login_required
+def admin_backup_now():
+    if not current_user.is_admin: abort(403)
+    path = backup_db()
+    if path:
+        flash(f'Sauvegarde créée : {os.path.basename(path)}', 'success')
+    else:
+        flash('Échec de la sauvegarde — voir les logs serveur.', 'danger')
+    return redirect(url_for('admin_backup'))
+
+@app.route('/admin/backup/download/<path:filename>')
+@login_required
+def admin_backup_download(filename):
+    if not current_user.is_admin: abort(403)
+    # sécurité : empêcher toute traversée de répertoire, on ne sert que depuis BACKUPS_DIR
+    safe_name = os.path.basename(filename)
+    path = os.path.join(BACKUPS_DIR, safe_name)
+    if not os.path.isfile(path) or not safe_name.startswith('dole2028_'):
+        abort(404)
+    return send_file(path, as_attachment=True, download_name=safe_name)
 
 # ── IMPORT ADAGIO ─────────────────────────────────────────────────────────────
 
@@ -2443,6 +2647,7 @@ def planning_export():
 # ── RUN ───────────────────────────────────────────────────────────────────────
 init_db()
 migrate_db()
+start_backup_thread()
 
 if __name__ == '__main__':
     init_db()
