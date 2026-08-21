@@ -635,8 +635,8 @@ def _mission_item(conn, m):
 
 @app.route('/planning')
 @login_required
-@require_droit('organisation')
 def planning():
+    if not (current_user.has_droit('organisation') or current_user.has_droit('communication')): abort(403)
     conn = get_db()
     parent_missions = conn.execute(
         'SELECT * FROM missions WHERE parent_id IS NULL ORDER BY jour, heure_debut'
@@ -1233,7 +1233,7 @@ def _get_responsables_taches(conn):
 @app.route('/taches/new', methods=['GET','POST'])
 @login_required
 def tache_new():
-    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation') or current_user.has_droit('communication')): abort(403)
     conn = get_db()
     missions = conn.execute('SELECT * FROM missions ORDER BY jour, heure_debut').fetchall()
     responsables = _get_responsables_taches(conn)
