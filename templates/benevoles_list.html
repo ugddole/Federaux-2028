@@ -3,6 +3,9 @@
 {% block page_title %}<i class="bi bi-person-heart me-2"></i>Bénévoles ({{ items|length }}){% endblock %}
 {% block topbar_actions %}
 {% if current_user.is_admin %}
+<a href="{{ url_for('benevoles_badges_all') }}" class="btn-fscf-outline me-2" title="Générer un PDF avec tous les badges manquants" style="border-color:#e8761a;color:#e8761a;">
+  <i class="bi bi-file-earmark-pdf-fill me-1"></i>Badges manquants
+</a>
 <a href="{{ url_for('benevole_new') }}" class="btn-fscf me-2"><i class="bi bi-plus-lg me-1"></i>Ajouter</a>
 <a href="{{ url_for('planning') }}" class="btn-fscf-outline"><i class="bi bi-calendar3-week me-1"></i>Planning</a>
 {% endif %}
@@ -56,6 +59,7 @@
         </td>
         <td>
           {% if current_user.is_admin %}
+          <a href="{{ url_for('benevole_badge', id=b.id) }}" class="btn btn-sm btn-outline-success me-1" title="Badge PDF"><i class="bi bi-download"></i></a>
           <a href="{{ url_for('benevole_edit', id=b.id) }}" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-pencil"></i></a>
           <button class="btn btn-sm btn-outline-danger" onclick="deleteBenevole({{ b.id }}, '{{ b.prenom }} {{ b.nom }}')"><i class="bi bi-trash"></i></button>
           {% endif %}
