@@ -25,7 +25,8 @@
 <div class="fscf-card">
   <div class="fscf-card-body p-0">
     {% if items %}
-    <table class="fscf-table">
+    <div class="table-responsive">
+    <table class="fscf-table" style="min-width:720px;">
       <thead><tr>
         <th>Nom / Prénom</th><th>Email</th><th>Téléphone</th><th>T-shirt</th><th>Missions</th><th>Droits</th><th>Actions</th>
       </tr></thead>
@@ -61,6 +62,7 @@
       {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <div class="text-center py-5 text-muted">
       <i class="bi bi-person-heart fs-1 d-block mb-3"></i>
