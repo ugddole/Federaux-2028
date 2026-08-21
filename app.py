@@ -470,53 +470,54 @@ def qr_to_base64(token):
 
 def _draw_badge_page(pdf, header_color, categorie, prenom, nom, club, numero_dossard, qr_path,
                       options):
-    """Dessine une page de badge sur un objet FPDF déjà positionné (add_page() déjà appelé)."""
+    """Dessine une page de badge au format A6 (105x148mm) sur un objet FPDF déjà positionné (add_page() déjà appelé)."""
+    W = 105
     pdf.set_fill_color(*header_color)
-    pdf.rect(0, 0, 86, 28, 'F')
+    pdf.rect(0, 0, W, 30, 'F')
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font('Helvetica', 'B', 12)
-    pdf.set_xy(3, 5)
-    pdf.cell(80, 7, 'DOLE 2028', align='C')
-    pdf.set_font('Helvetica', '', 7)
-    pdf.set_xy(3, 13)
-    pdf.cell(80, 4, 'Manifestation Nationale FSCF', align='C')
-    pdf.set_xy(3, 18)
-    pdf.cell(80, 4, 'Gymnastique Artistique Feminine', align='C')
+    pdf.set_font('Helvetica', 'B', 14)
+    pdf.set_xy(4, 6)
+    pdf.cell(97, 8, 'DOLE 2028', align='C')
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_xy(4, 15)
+    pdf.cell(97, 4, 'Manifestation Nationale FSCF', align='C')
+    pdf.set_xy(4, 20.5)
+    pdf.cell(97, 4, 'Gymnastique Artistique Feminine', align='C')
 
     pdf.set_fill_color(26, 26, 46)
-    pdf.rect(0, 29, 86, 8, 'F')
+    pdf.rect(0, 30, W, 9, 'F')
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font('Helvetica', 'B', 8)
-    pdf.set_xy(3, 31)
-    pdf.cell(80, 5, str(categorie).upper(), align='C')
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_xy(4, 32.5)
+    pdf.cell(97, 5, str(categorie).upper(), align='C')
 
     pdf.set_text_color(26, 26, 46)
+    pdf.set_font('Helvetica', 'B', 17)
+    pdf.set_xy(4, 44)
+    pdf.cell(97, 9, str(prenom).upper(), align='C')
     pdf.set_font('Helvetica', 'B', 15)
-    pdf.set_xy(3, 40)
-    pdf.cell(80, 8, str(prenom).upper(), align='C')
-    pdf.set_font('Helvetica', 'B', 13)
-    pdf.set_xy(3, 49)
-    pdf.cell(80, 7, str(nom).upper(), align='C')
+    pdf.set_xy(4, 54)
+    pdf.cell(97, 8, str(nom).upper(), align='C')
 
-    pdf.set_font('Helvetica', '', 9)
+    pdf.set_font('Helvetica', '', 10)
     pdf.set_text_color(80, 80, 80)
-    pdf.set_xy(3, 58)
+    pdf.set_xy(4, 64)
     club_txt = str(club)
-    if len(club_txt) > 35:
-        club_txt = club_txt[:33] + '...'
-    pdf.cell(80, 5, club_txt, align='C')
+    if len(club_txt) > 42:
+        club_txt = club_txt[:40] + '...'
+    pdf.cell(97, 6, club_txt, align='C')
 
     pdf.set_fill_color(245, 245, 245)
-    pdf.rect(3, 65, 80, 8, 'F')
+    pdf.rect(4, 73, 97, 9, 'F')
     pdf.set_text_color(*header_color)
-    pdf.set_font('Helvetica', 'B', 11)
-    pdf.set_xy(3, 67)
-    pdf.cell(80, 5, f"Dossard N° {numero_dossard}", align='C')
+    pdf.set_font('Helvetica', 'B', 12)
+    pdf.set_xy(4, 75.2)
+    pdf.cell(97, 5, f"Dossard N° {numero_dossard}", align='C')
 
     # ── Options repas / gala/soirée ──────────────────────────────────────────
-    pill_w, pill_h, gap = 18.5, 7, 1.33
-    x = 3
-    y_pills = 76
+    pill_w, pill_h, gap = 23.125, 8, 1.5
+    x = 4
+    y_pills = 85
     for label, active, color in options:
         if active:
             pdf.set_fill_color(*color)
@@ -527,20 +528,21 @@ def _draw_badge_page(pdf, header_color, categorie, prenom, nom, club, numero_dos
             pdf.set_line_width(0.2)
             pdf.rect(x, y_pills, pill_w, pill_h)
             pdf.set_text_color(190, 190, 190)
-        pdf.set_font('Helvetica', 'B', 6.5)
-        pdf.set_xy(x, y_pills + 2)
+        pdf.set_font('Helvetica', 'B', 7)
+        pdf.set_xy(x, y_pills + 2.5)
         pdf.cell(pill_w, 4, label, align='C')
         x += pill_w + gap
 
-    pdf.image(qr_path, x=23, y=87, w=40, h=40)
+    qr_size = 46
+    pdf.image(qr_path, x=(W - qr_size) / 2, y=97, w=qr_size, h=qr_size)
 
     pdf.set_text_color(160, 160, 160)
-    pdf.set_font('Helvetica', '', 6)
-    pdf.set_xy(3, 129)
-    pdf.cell(80, 4, 'Scanner ce badge pour valider l\'acces', align='C')
+    pdf.set_font('Helvetica', '', 7)
+    pdf.set_xy(4, 143)
+    pdf.cell(97, 4, 'Scanner ce badge pour valider l\'acces', align='C')
 
     pdf.set_fill_color(*header_color)
-    pdf.rect(0, 133, 86, 4, 'F')
+    pdf.rect(0, 146, W, 2, 'F')
 
 def _make_qr(token, path):
     qr = qrcode.QRCode(version=1, box_size=8, border=2)
@@ -558,7 +560,7 @@ def generate_badge(p_id):
     qr_path = os.path.join(QR_DIR, f'qr_{p_id}.png')
     _make_qr(p['qr_token'], qr_path)
 
-    pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
+    pdf = FPDF(orientation='P', unit='mm', format='A6')
     pdf.set_auto_page_break(False)
     pdf.add_page()
     options = [
@@ -586,7 +588,7 @@ def generate_badges_participants_all(only_missing=True):
         conn.close()
         return None, 0
 
-    pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
+    pdf = FPDF(orientation='P', unit='mm', format='A6')
     pdf.set_auto_page_break(False)
     ids = []
     for p in items:
@@ -619,7 +621,7 @@ def generate_badge_juge(j_id):
     qr_path = os.path.join(QR_DIR, f'qr_juge_{j_id}.png')
     _make_qr(j['qr_token'], qr_path)
 
-    pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
+    pdf = FPDF(orientation='P', unit='mm', format='A6')
     pdf.set_auto_page_break(False)
     pdf.add_page()
     options = [
@@ -647,7 +649,7 @@ def generate_badges_juges_all(only_missing=True):
         conn.close()
         return None, 0
 
-    pdf = FPDF(orientation='P', unit='mm', format=(86, 137))
+    pdf = FPDF(orientation='P', unit='mm', format='A6')
     pdf.set_auto_page_break(False)
     ids = []
     for j in items:
