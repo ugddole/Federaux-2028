@@ -457,8 +457,8 @@ def dashboard():
 # ── PARTICIPANTS ──────────────────────────────────────────────────────────────
 @app.route('/participants')
 @login_required
-@require_droit('participants')
 def participants_list():
+    if not (current_user.has_droit('participants') or current_user.has_droit('competition')): abort(403)
     conn = get_db()
     q, cat = request.args.get('q',''), request.args.get('cat','')
     sql = 'SELECT p.*,u.nom,u.prenom,u.email FROM participants p JOIN users u ON p.user_id=u.id WHERE 1=1'
