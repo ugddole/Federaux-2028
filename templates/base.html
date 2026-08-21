@@ -54,7 +54,7 @@
     </a>
     {% endif %}
 
-{% if current_user.has_droit('competition') %}
+{% if current_user.has_droit('competition') or current_user.has_droit('participants') %}
     <div class="nav-section mt-2">Compétition</div>
     <a href="{{ url_for('programme') }}" class="nav-link {% if 'programme' in request.endpoint %}active{% endif %}">
       <i class="bi bi-list-ol"></i> Programme
