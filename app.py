@@ -715,8 +715,8 @@ def api_affecter():
 # ── PROGRAMME ─────────────────────────────────────────────────────────────────
 @app.route('/programme')
 @login_required
-@require_droit('competition')
 def programme():
+    if not (current_user.has_droit('competition') or current_user.has_droit('participants')): abort(403)
     conn = get_db()
     items = conn.execute('SELECT * FROM programme ORDER BY ordre,heure_debut').fetchall()
     conn.close()
