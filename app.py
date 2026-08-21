@@ -1536,7 +1536,7 @@ def _editable_budget_categories(conn):
 @app.route('/budget')
 @login_required
 def budget_list():
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     lignes = conn.execute('SELECT * FROM budget_lignes ORDER BY categorie, code').fetchall()
     by_cat = {}
@@ -1564,7 +1564,7 @@ def budget_list():
 @app.route('/budget/new', methods=['GET','POST'])
 @login_required
 def budget_new():
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     editable_cats = _editable_budget_categories(conn)
     if request.method == 'POST':
@@ -1591,7 +1591,7 @@ def budget_new():
 @app.route('/budget/<int:id>/edit', methods=['GET','POST'])
 @login_required
 def budget_edit(id):
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     item = conn.execute('SELECT * FROM budget_lignes WHERE id=?', (id,)).fetchone()
     if not item: conn.close(); abort(404)
@@ -1621,7 +1621,7 @@ def budget_edit(id):
 @app.route('/budget/<int:id>/delete', methods=['POST'])
 @login_required
 def budget_delete(id):
-    if not current_user.is_staff: abort(403)
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
     item = conn.execute('SELECT categorie FROM budget_lignes WHERE id=?', (id,)).fetchone()
     if not item: conn.close(); abort(404)
