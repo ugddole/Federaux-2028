@@ -1626,16 +1626,29 @@ def programme_import():
     return render_template('programme_import.html')
 
 # ── FORUM ─────────────────────────────────────────────────────────────────────
+# Catégories masquées pour les Participants, les Juges et le droit Compétition
+# (sauf s'ils ont aussi le droit organisation/communication, ou sont admin)
+FORUM_CATS_RESTREINTES = {'Bénévoles', 'Technique & Matériel'}
+
+def forum_categories_masquees(user):
+    if user.is_admin or user.has_droit('organisation') or user.has_droit('communication'):
+        return set()
+    if user.role == 'juge' or user.role == 'participant' or user.has_droit('competition') or user.has_droit('participants'):
+        return FORUM_CATS_RESTREINTES
+    return set()
+
 @app.route('/forum')
 @login_required
 def forum():
     if not (current_user.role == 'juge' or current_user.has_droit('communication') or current_user.has_droit('organisation')): abort(403)
     conn = get_db()
+    masquees = forum_categories_masquees(current_user)
     cats = conn.execute('''
         SELECT fc.*,COUNT(fq.id) nb,SUM(CASE WHEN fq.is_resolved=0 THEN 1 ELSE 0 END) ouvertes
         FROM forum_categories fc LEFT JOIN forum_questions fq ON fc.id=fq.categorie_id
         GROUP BY fc.id ORDER BY fc.ordre
     ''').fetchall()
+    cats = [c for c in cats if c['nom'] not in masquees]
     recent = conn.execute('''
         SELECT fq.*,u.nom,u.prenom,fc.nom cat_nom,COUNT(fr.id) nb_rep
         FROM forum_questions fq JOIN users u ON fq.auteur_id=u.id
@@ -1643,6 +1656,7 @@ def forum():
         LEFT JOIN forum_reponses fr ON fq.id=fr.question_id
         GROUP BY fq.id ORDER BY fq.created_at DESC LIMIT 6
     ''').fetchall()
+    recent = [q for q in recent if q['cat_nom'] not in masquees]
     conn.close()
     return render_template('forum_index.html', cats=cats, recent=recent)
 
@@ -1652,6 +1666,7 @@ def forum_cat(id):
     conn = get_db()
     cat = conn.execute('SELECT * FROM forum_categories WHERE id=?',(id,)).fetchone()
     if not cat: abort(404)
+    if cat['nom'] in forum_categories_masquees(current_user): abort(403)
     qs = conn.execute('''
         SELECT fq.*,u.nom,u.prenom,COUNT(fr.id) nb FROM forum_questions fq
         JOIN users u ON fq.auteur_id=u.id
@@ -1671,6 +1686,7 @@ def forum_question(id):
         JOIN forum_categories fc ON fq.categorie_id=fc.id WHERE fq.id=?
     ''', (id,)).fetchone()
     if not q: abort(404)
+    if q['cat_nom'] in forum_categories_masquees(current_user): abort(403)
     if request.method == 'POST':
         txt = request.form.get('contenu','').strip()
         if txt:
@@ -1688,9 +1704,14 @@ def forum_question(id):
 @login_required
 def forum_ask():
     conn = get_db()
+    masquees = forum_categories_masquees(current_user)
     cats = conn.execute('SELECT * FROM forum_categories ORDER BY ordre').fetchall()
+    cats = [c for c in cats if c['nom'] not in masquees]
     if request.method == 'POST':
         f = request.form
+        cat_choisie = conn.execute('SELECT * FROM forum_categories WHERE id=?', (f.get('cat'),)).fetchone()
+        if cat_choisie and cat_choisie['nom'] in masquees:
+            conn.close(); abort(403)
         if f.get('titre') and f.get('contenu') and f.get('cat'):
             conn.execute('INSERT INTO forum_questions (auteur_id,categorie_id,titre,contenu) VALUES (?,?,?,?)',
                 (current_user.id, f['cat'], f['titre'].strip(), f['contenu'].strip()))
