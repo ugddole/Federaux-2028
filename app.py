@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from io import BytesIO, StringIO
 import base64
 from fpdf import FPDF
+from PIL import Image, ImageDraw, ImageFont
+import zipfile
 from functools import wraps
 from excel_export import build_export_workbook
 
@@ -493,81 +495,84 @@ def qr_to_base64(token):
     img.save(buf, 'PNG')
     return base64.b64encode(buf.getvalue()).decode()
 
-def _draw_badge_page(pdf, header_color, categorie, prenom, nom, club, numero_dossard, qr_path,
-                      options, numero_label='Dossard N°'):
-    """Dessine une page de badge au format A6 (105x148mm) sur un objet FPDF déjà positionné (add_page() déjà appelé)."""
-    W = 105
-    pdf.set_fill_color(*header_color)
-    pdf.rect(0, 0, W, 30, 'F')
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font('Helvetica', 'B', 14)
-    pdf.set_xy(4, 6)
-    pdf.cell(97, 8, 'DOLE 2028', align='C')
-    pdf.set_font('Helvetica', '', 8)
-    pdf.set_xy(4, 15)
-    pdf.cell(97, 4, 'Manifestation Nationale FSCF', align='C')
-    pdf.set_xy(4, 20.5)
-    pdf.cell(97, 4, 'Gymnastique Artistique Feminine', align='C')
+BADGE_SCALE = 10  # pixels par mm (badge rendu à 254 dpi environ, net sur smartphone)
+FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts')
 
-    pdf.set_fill_color(26, 26, 46)
-    pdf.rect(0, 30, W, 9, 'F')
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font('Helvetica', 'B', 9)
-    pdf.set_xy(4, 32.5)
-    pdf.cell(97, 5, str(categorie).upper(), align='C')
+def _mm(v):
+    return int(round(v * BADGE_SCALE))
 
-    pdf.set_text_color(26, 26, 46)
-    pdf.set_font('Helvetica', 'B', 17)
-    pdf.set_xy(4, 44)
-    pdf.cell(97, 9, str(prenom).upper(), align='C')
-    pdf.set_font('Helvetica', 'B', 15)
-    pdf.set_xy(4, 54)
-    pdf.cell(97, 8, str(nom).upper(), align='C')
+def _badge_font(bold, size_mm):
+    """Police embarquée dans /fonts (DejaVu Sans) — ne dépend pas des polices
+    installées sur le serveur Railway. size_mm est converti en taille pixel."""
+    name = 'DejaVuSans-Bold.ttf' if bold else 'DejaVuSans.ttf'
+    path = os.path.join(FONT_DIR, name)
+    try:
+        return ImageFont.truetype(path, _mm(size_mm))
+    except Exception:
+        return ImageFont.load_default()
 
-    pdf.set_font('Helvetica', '', 10)
-    pdf.set_text_color(80, 80, 80)
-    pdf.set_xy(4, 64)
+def _center_text(draw, text, center_x, center_y, font, fill):
+    bbox = draw.textbbox((0, 0), text, font=font)
+    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    draw.text((center_x - w / 2 - bbox[0], center_y - h / 2 - bbox[1]), text, font=font, fill=fill)
+
+def _draw_badge_image(header_color, categorie, prenom, nom, club, numero_dossard, qr_path,
+                       options, numero_label='Dossard N°'):
+    """Dessine un badge au format A6 (105x148mm) et retourne une image PIL (PNG)."""
+    W, H = _mm(105), _mm(148)
+    img = Image.new('RGB', (W, H), 'white')
+    d = ImageDraw.Draw(img)
+
+    # Bandeau titre
+    d.rectangle([0, 0, W, _mm(30)], fill=header_color)
+    _center_text(d, 'DOLE 2028', W / 2, _mm(10), _badge_font(True, 5), 'white')
+    _center_text(d, 'Manifestation Nationale FSCF', W / 2, _mm(17), _badge_font(False, 3), 'white')
+    _center_text(d, 'Gymnastique Artistique Feminine', W / 2, _mm(22.5), _badge_font(False, 3), 'white')
+
+    # Bandeau catégorie
+    d.rectangle([0, _mm(30), W, _mm(39)], fill=(26, 26, 46))
+    _center_text(d, str(categorie).upper(), W / 2, _mm(35), _badge_font(True, 3.2), 'white')
+
+    # Nom / prénom
+    _center_text(d, str(prenom).upper(), W / 2, _mm(48.5), _badge_font(True, 6), (26, 26, 46))
+    _center_text(d, str(nom).upper(), W / 2, _mm(58), _badge_font(True, 5.3), (26, 26, 46))
+
+    # Club
     club_txt = str(club)
     if len(club_txt) > 42:
         club_txt = club_txt[:40] + '...'
-    pdf.cell(97, 6, club_txt, align='C')
+    _center_text(d, club_txt, W / 2, _mm(67), _badge_font(False, 3.5), (80, 80, 80))
 
-    pdf.set_fill_color(245, 245, 245)
-    pdf.rect(4, 73, 97, 9, 'F')
-    pdf.set_text_color(*header_color)
-    pdf.set_font('Helvetica', 'B', 12)
-    pdf.set_xy(4, 75.2)
-    pdf.cell(97, 5, f"{numero_label} {numero_dossard}", align='C')
+    # Bandeau numéro
+    d.rectangle([_mm(4), _mm(73), _mm(101), _mm(82)], fill=(245, 245, 245))
+    _center_text(d, f"{numero_label} {numero_dossard}", W / 2, _mm(77.7), _badge_font(True, 4.2), header_color)
 
-    # ── Options repas / gala/soirée ──────────────────────────────────────────
+    # Options repas / gala / soirée
     pill_w, pill_h, gap = 23.125, 8, 1.5
-    x = 4
+    x = 4.0
     y_pills = 85
     for label, active, color in options:
+        x0, y0 = _mm(x), _mm(y_pills)
+        x1, y1 = _mm(x + pill_w), _mm(y_pills + pill_h)
         if active:
-            pdf.set_fill_color(*color)
-            pdf.rect(x, y_pills, pill_w, pill_h, 'F')
-            pdf.set_text_color(255, 255, 255)
+            d.rectangle([x0, y0, x1, y1], fill=tuple(color))
+            text_color = 'white'
         else:
-            pdf.set_draw_color(210, 210, 210)
-            pdf.set_line_width(0.2)
-            pdf.rect(x, y_pills, pill_w, pill_h)
-            pdf.set_text_color(190, 190, 190)
-        pdf.set_font('Helvetica', 'B', 7)
-        pdf.set_xy(x, y_pills + 2.5)
-        pdf.cell(pill_w, 4, label, align='C')
+            d.rectangle([x0, y0, x1, y1], outline=(210, 210, 210), width=max(1, _mm(0.2)))
+            text_color = (190, 190, 190)
+        _center_text(d, label, (x0 + x1) / 2, _mm(y_pills + 4.5), _badge_font(True, 2.5), text_color)
         x += pill_w + gap
 
-    qr_size = 46
-    pdf.image(qr_path, x=(W - qr_size) / 2, y=97, w=qr_size, h=qr_size)
+    # QR code
+    qr_size = _mm(46)
+    qr_img = Image.open(qr_path).convert('RGB').resize((qr_size, qr_size))
+    img.paste(qr_img, (int((W - qr_size) / 2), _mm(97)))
 
-    pdf.set_text_color(160, 160, 160)
-    pdf.set_font('Helvetica', '', 7)
-    pdf.set_xy(4, 143)
-    pdf.cell(97, 4, 'Scanner ce badge pour valider l\'acces', align='C')
+    # Pied de page
+    _center_text(d, "Scanner ce badge pour valider l'acces", W / 2, _mm(145), _badge_font(False, 2.5), (160, 160, 160))
+    d.rectangle([0, _mm(146), W, H], fill=header_color)
 
-    pdf.set_fill_color(*header_color)
-    pdf.rect(0, 146, W, 2, 'F')
+    return img
 
 def _make_qr(token, path):
     qr = qrcode.QRCode(version=1, box_size=8, border=2)
@@ -593,23 +598,20 @@ def generate_badge(p_id):
     qr_path = os.path.join(QR_DIR, f'qr_{p_id}.png')
     _make_qr(token, qr_path)
 
-    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
-    pdf.set_auto_page_break(False)
-    pdf.add_page()
     options = [
         ('S.MIDI', bool(p['repas_samedi_midi']), (226, 0, 122)),
         ('S.SOIR', bool(p['repas_samedi_soir']), (0, 102, 204)),
         ('GALA', bool(p['gala']), (106, 13, 173)),
         ('D.MIDI', bool(p['collation_dimanche_midi']), (0, 153, 68)),
     ]
-    _draw_badge_page(pdf, (226, 0, 122), p['categorie'], p['prenom'], p['nom'], p['club'], p['numero_dossard'], qr_path, options)
+    img = _draw_badge_image((226, 0, 122), p['categorie'], p['prenom'], p['nom'], p['club'], p['numero_dossard'], qr_path, options)
 
-    out = os.path.join(BADGES_DIR, f'badge_{p_id}.pdf')
-    pdf.output(out)
+    out = os.path.join(BADGES_DIR, f'badge_{p_id}.png')
+    img.save(out, 'PNG')
     return out
 
 def generate_badges_participants_all(only_missing=True):
-    """Génère un unique PDF multi-pages avec les badges de tous les participants
+    """Génère un fichier ZIP contenant le badge PNG de tous les participants
     (ou seulement ceux sans badge encore généré si only_missing=True)."""
     conn = get_db()
     sql = "SELECT p.*,u.nom,u.prenom FROM participants p JOIN users u ON p.user_id=u.id"
@@ -621,9 +623,8 @@ def generate_badges_participants_all(only_missing=True):
         conn.close()
         return None, 0
 
-    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
-    pdf.set_auto_page_break(False)
     ids = []
+    fichiers = []
     for p in items:
         token = p['qr_token']
         if not token:
@@ -632,21 +633,25 @@ def generate_badges_participants_all(only_missing=True):
             conn.commit()
         qr_path = os.path.join(QR_DIR, f'qr_{p["id"]}.png')
         _make_qr(token, qr_path)
-        pdf.add_page()
         options = [
             ('S.MIDI', bool(p['repas_samedi_midi']), (226, 0, 122)),
             ('S.SOIR', bool(p['repas_samedi_soir']), (0, 102, 204)),
             ('GALA', bool(p['gala']), (106, 13, 173)),
             ('D.MIDI', bool(p['collation_dimanche_midi']), (0, 153, 68)),
         ]
-        _draw_badge_page(pdf, (226, 0, 122), p['categorie'], p['prenom'], p['nom'], p['club'], p['numero_dossard'], qr_path, options)
+        img = _draw_badge_image((226, 0, 122), p['categorie'], p['prenom'], p['nom'], p['club'], p['numero_dossard'], qr_path, options)
+        png_path = os.path.join(BADGES_DIR, f'badge_{p["id"]}.png')
+        img.save(png_path, 'PNG')
+        fichiers.append((png_path, f"{p['nom']}_{p['prenom']}_{p['numero_dossard']}.png"))
         ids.append(p['id'])
 
     conn.execute(f"UPDATE participants SET badge_generated=1 WHERE id IN ({','.join('?'*len(ids))})", ids)
     conn.commit(); conn.close()
 
-    out = os.path.join(BADGES_DIR, f'badges_participants_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
-    pdf.output(out)
+    out = os.path.join(BADGES_DIR, f'badges_participants_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip')
+    with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for path, arcname in fichiers:
+            zf.write(path, arcname)
     return out, len(ids)
 
 def generate_badge_juge(j_id):
@@ -666,23 +671,20 @@ def generate_badge_juge(j_id):
     qr_path = os.path.join(QR_DIR, f'qr_juge_{j_id}.png')
     _make_qr(token, qr_path)
 
-    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
-    pdf.set_auto_page_break(False)
-    pdf.add_page()
     options = [
         ('S.MIDI', bool(j['repas_samedi_midi']), (226, 0, 122)),
         ('S.SOIR', bool(j['repas_samedi_soir']), (0, 102, 204)),
         ('SOIREE', bool(j['soiree_juges']), (106, 13, 173)),
         ('D.MIDI', bool(j['collation_dimanche_midi']), (0, 153, 68)),
     ]
-    _draw_badge_page(pdf, (106, 13, 173), j['categorie'], j['prenom'], j['nom'], j['club'], j['numero_dossard'], qr_path, options)
+    img = _draw_badge_image((106, 13, 173), j['categorie'], j['prenom'], j['nom'], j['club'], j['numero_dossard'], qr_path, options)
 
-    out = os.path.join(BADGES_DIR, f'badge_juge_{j_id}.pdf')
-    pdf.output(out)
+    out = os.path.join(BADGES_DIR, f'badge_juge_{j_id}.png')
+    img.save(out, 'PNG')
     return out
 
 def generate_badges_juges_all(only_missing=True):
-    """Génère un unique PDF multi-pages avec les badges de tous les juges
+    """Génère un fichier ZIP contenant le badge PNG de tous les juges
     (ou seulement ceux sans badge encore généré si only_missing=True)."""
     conn = get_db()
     sql = "SELECT j.*,u.nom,u.prenom FROM juges j JOIN users u ON j.user_id=u.id"
@@ -694,9 +696,8 @@ def generate_badges_juges_all(only_missing=True):
         conn.close()
         return None, 0
 
-    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
-    pdf.set_auto_page_break(False)
     ids = []
+    fichiers = []
     for j in items:
         token = j['qr_token']
         if not token:
@@ -705,21 +706,25 @@ def generate_badges_juges_all(only_missing=True):
             conn.commit()
         qr_path = os.path.join(QR_DIR, f'qr_juge_{j["id"]}.png')
         _make_qr(token, qr_path)
-        pdf.add_page()
         options = [
             ('S.MIDI', bool(j['repas_samedi_midi']), (226, 0, 122)),
             ('S.SOIR', bool(j['repas_samedi_soir']), (0, 102, 204)),
             ('SOIREE', bool(j['soiree_juges']), (106, 13, 173)),
             ('D.MIDI', bool(j['collation_dimanche_midi']), (0, 153, 68)),
         ]
-        _draw_badge_page(pdf, (106, 13, 173), j['categorie'], j['prenom'], j['nom'], j['club'], j['numero_dossard'], qr_path, options)
+        img = _draw_badge_image((106, 13, 173), j['categorie'], j['prenom'], j['nom'], j['club'], j['numero_dossard'], qr_path, options)
+        png_path = os.path.join(BADGES_DIR, f'badge_juge_{j["id"]}.png')
+        img.save(png_path, 'PNG')
+        fichiers.append((png_path, f"{j['nom']}_{j['prenom']}_{j['numero_dossard']}.png"))
         ids.append(j['id'])
 
     conn.execute(f"UPDATE juges SET badge_generated=1 WHERE id IN ({','.join('?'*len(ids))})", ids)
     conn.commit(); conn.close()
 
-    out = os.path.join(BADGES_DIR, f'badges_juges_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
-    pdf.output(out)
+    out = os.path.join(BADGES_DIR, f'badges_juges_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip')
+    with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for path, arcname in fichiers:
+            zf.write(path, arcname)
     return out, len(ids)
 
 def generate_badge_benevole(b_id):
@@ -740,19 +745,16 @@ def generate_badge_benevole(b_id):
     qr_path = os.path.join(QR_DIR, f'qr_benevole_{b_id}.png')
     _make_qr(token, qr_path)
 
-    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
-    pdf.set_auto_page_break(False)
-    pdf.add_page()
     numero = f'B{2028}{b_id:04d}'
-    _draw_badge_page(pdf, (0, 153, 68), 'BÉNÉVOLE', b['prenom'], b['nom'], f"Taille T-shirt : {b['tshirt']}", numero,
-                      qr_path, [], numero_label='N° Bénévole')
+    img = _draw_badge_image((0, 153, 68), 'BÉNÉVOLE', b['prenom'], b['nom'], f"Taille T-shirt : {b['tshirt']}", numero,
+                             qr_path, [], numero_label='N° Bénévole')
 
-    out = os.path.join(BADGES_DIR, f'badge_benevole_{b_id}.pdf')
-    pdf.output(out)
+    out = os.path.join(BADGES_DIR, f'badge_benevole_{b_id}.png')
+    img.save(out, 'PNG')
     return out
 
 def generate_badges_benevoles_all(only_missing=True):
-    """Génère un unique PDF multi-pages avec les badges de tous les bénévoles
+    """Génère un fichier ZIP contenant le badge PNG de tous les bénévoles
     (ou seulement ceux sans badge encore généré si only_missing=True)."""
     conn = get_db()
     sql = "SELECT b.*,u.nom,u.prenom FROM benevoles b JOIN users u ON b.user_id=u.id"
@@ -764,26 +766,29 @@ def generate_badges_benevoles_all(only_missing=True):
         conn.close()
         return None, 0
 
-    pdf = FPDF(orientation='P', unit='mm', format=(105, 148))
-    pdf.set_auto_page_break(False)
     ids = []
+    fichiers = []
     for b in items:
         token = b['qr_token'] or str(uuid.uuid4())
         if not b['qr_token']:
             conn.execute('UPDATE benevoles SET qr_token=? WHERE id=?', (token, b['id']))
         qr_path = os.path.join(QR_DIR, f'qr_benevole_{b["id"]}.png')
         _make_qr(token, qr_path)
-        pdf.add_page()
         numero = f'B{2028}{b["id"]:04d}'
-        _draw_badge_page(pdf, (0, 153, 68), 'BÉNÉVOLE', b['prenom'], b['nom'], f"Taille T-shirt : {b['tshirt']}", numero,
-                          qr_path, [], numero_label='N° Bénévole')
+        img = _draw_badge_image((0, 153, 68), 'BÉNÉVOLE', b['prenom'], b['nom'], f"Taille T-shirt : {b['tshirt']}", numero,
+                                 qr_path, [], numero_label='N° Bénévole')
+        png_path = os.path.join(BADGES_DIR, f'badge_benevole_{b["id"]}.png')
+        img.save(png_path, 'PNG')
+        fichiers.append((png_path, f"{b['nom']}_{b['prenom']}_{numero}.png"))
         ids.append(b['id'])
 
     conn.execute(f"UPDATE benevoles SET badge_generated=1 WHERE id IN ({','.join('?'*len(ids))})", ids)
     conn.commit(); conn.close()
 
-    out = os.path.join(BADGES_DIR, f'badges_benevoles_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
-    pdf.output(out)
+    out = os.path.join(BADGES_DIR, f'badges_benevoles_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip')
+    with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for path, arcname in fichiers:
+            zf.write(path, arcname)
     return out, len(ids)
 
 # ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -1014,7 +1019,7 @@ def participant_badge(id):
     conn.execute('UPDATE participants SET badge_generated=1 WHERE id=?',(id,))
     p = conn.execute('SELECT u.nom,u.prenom FROM participants p JOIN users u ON p.user_id=u.id WHERE p.id=?',(id,)).fetchone()
     conn.commit(); conn.close()
-    return send_file(path, as_attachment=True, download_name=f"badge_{p['prenom']}_{p['nom']}.pdf")
+    return send_file(path, as_attachment=True, download_name=f"badge_{p['prenom']}_{p['nom']}.png")
 
 @app.route('/participants/badges/all')
 @login_required
@@ -1025,7 +1030,7 @@ def participants_badges_all():
     if not path:
         flash('Aucun badge à générer (tous les participants ont déjà un badge).', 'warning')
         return redirect(url_for('participants_list'))
-    flash(f'{count} badge(s) généré(s) dans un seul PDF.', 'success')
+    flash(f'{count} badge(s) généré(s) dans une archive ZIP (PNG).', 'success')
     return send_file(path, as_attachment=True, download_name=os.path.basename(path))
 
 # ── JUGES ─────────────────────────────────────────────────────────────────────
@@ -1156,7 +1161,7 @@ def juge_badge(id):
     conn.execute('UPDATE juges SET badge_generated=1 WHERE id=?',(id,))
     j = conn.execute('SELECT u.nom,u.prenom FROM juges j JOIN users u ON j.user_id=u.id WHERE j.id=?',(id,)).fetchone()
     conn.commit(); conn.close()
-    return send_file(path, as_attachment=True, download_name=f"badge_{j['prenom']}_{j['nom']}.pdf")
+    return send_file(path, as_attachment=True, download_name=f"badge_{j['prenom']}_{j['nom']}.png")
 
 @app.route('/juges/badges/all')
 @login_required
@@ -1167,7 +1172,7 @@ def juges_badges_all():
     if not path:
         flash('Aucun badge à générer (tous les juges ont déjà un badge).', 'warning')
         return redirect(url_for('juges_list'))
-    flash(f'{count} badge(s) généré(s) dans un seul PDF.', 'success')
+    flash(f'{count} badge(s) généré(s) dans une archive ZIP (PNG).', 'success')
     return send_file(path, as_attachment=True, download_name=os.path.basename(path))
 
 @app.route('/juges/export')
@@ -1318,7 +1323,7 @@ def benevole_badge(id):
     conn.execute('UPDATE benevoles SET badge_generated=1 WHERE id=?',(id,))
     b = conn.execute('SELECT u.nom,u.prenom FROM benevoles b JOIN users u ON b.user_id=u.id WHERE b.id=?',(id,)).fetchone()
     conn.commit(); conn.close()
-    return send_file(path, as_attachment=True, download_name=f"badge_{b['prenom']}_{b['nom']}.pdf")
+    return send_file(path, as_attachment=True, download_name=f"badge_{b['prenom']}_{b['nom']}.png")
 
 @app.route('/benevoles/badges/all')
 @login_required
@@ -1329,7 +1334,7 @@ def benevoles_badges_all():
     if not path:
         flash('Aucun badge à générer (tous les bénévoles ont déjà un badge).', 'warning')
         return redirect(url_for('benevoles_list'))
-    flash(f'{count} badge(s) généré(s) dans un seul PDF.', 'success')
+    flash(f'{count} badge(s) généré(s) dans une archive ZIP (PNG).', 'success')
     return send_file(path, as_attachment=True, download_name=os.path.basename(path))
 
 @app.route('/benevoles/new', methods=['GET','POST'])
