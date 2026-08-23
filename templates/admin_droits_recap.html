@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Récapitulatif des droits{% endblock %}
+{% block page_title %}<i class="bi bi-shield-check me-2"></i>Récapitulatif des droits{% endblock %}
+
+{% block content %}
+<p class="text-muted mb-4">
+  Ce tableau est calculé automatiquement à partir des règles d'accès réellement présentes dans le code
+  (une case cochée ✅ signifie qu'un utilisateur possédant <em>uniquement</em> ce profil peut accéder à la page).
+  Il n'est pas modifiable ici — pour changer une règle, il faut modifier la condition correspondante dans <code>app.py</code>.
+</p>
+
+<div class="fscf-card mb-4">
+  <div class="fscf-card-header"><i class="bi bi-grid-fill me-2"></i>Accès aux menus</div>
+  <div class="fscf-card-body p-0">
+    <div class="table-responsive">
+      <table class="fscf-table align-middle text-center">
+        <thead>
+          <tr>
+            <th class="text-start">Page</th>
+            {% for p in profils %}<th style="font-size:11px;white-space:nowrap;">{{ p }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in menus_recap %}
+          <tr>
+            <td class="text-start"><i class="bi {{ row.icon }} me-2"></i>{{ row.label }}</td>
+            {% for ok in row.cols %}
+              <td>{% if ok %}<span class="text-success">✅</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="fscf-card mb-4">
+  <div class="fscf-card-header"><i class="bi bi-chat-dots-fill me-2"></i>Catégories du forum restreintes</div>
+  <div class="fscf-card-body p-0">
+    <div class="table-responsive">
+      <table class="fscf-table align-middle text-center">
+        <thead>
+          <tr>
+            <th class="text-start">Catégorie</th>
+            {% for p in profils %}<th style="font-size:11px;white-space:nowrap;">{{ p }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in forum_recap %}
+          <tr>
+            <td class="text-start">{{ row.label }}</td>
+            {% for ok in row.cols %}
+              <td>{% if ok %}<span class="text-success">✅</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-muted small p-3 mb-0">
+      Les autres catégories du forum sont visibles par tout utilisateur ayant accès au forum lui-même
+      (voir la ligne "Forum" du tableau ci-dessus).
+    </p>
+  </div>
+</div>
+{% endblock %}
