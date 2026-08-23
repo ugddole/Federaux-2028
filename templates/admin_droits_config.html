@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Gérer les droits{% endblock %}
+{% block page_title %}<i class="bi bi-shield-check me-2"></i>Gérer les droits{% endblock %}
+
+{% block content %}
+<p class="text-muted mb-4">
+  Coche les droits qui donnent accès à chaque page ou catégorie du forum. Une ligne sans aucune case cochée
+  reste <strong>ouverte à tout utilisateur connecté</strong>. Un utilisateur ayant au moins un des droits cochés
+  sur une ligne y a accès (logique "OU"). Les administrateurs ont toujours accès à tout, quels que soient les réglages.
+</p>
+
+<form method="POST">
+  <div class="fscf-card mb-4">
+    <div class="fscf-card-header"><i class="bi bi-grid-fill me-2"></i>Accès aux pages</div>
+    <div class="fscf-card-body p-0">
+      <div class="table-responsive">
+        <table class="fscf-table align-middle text-center">
+          <thead>
+            <tr>
+              <th class="text-start">Page</th>
+              {% for p in profils %}<th style="font-size:11px;white-space:nowrap;">{{ profils_labels[p] }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for page in pages %}
+            <tr>
+              <td class="text-start"><i class="bi {{ page.icon }} me-2"></i>{{ page.label }}</td>
+              {% for p in profils %}
+              <td>
+                <input type="checkbox" name="page__{{ page.key }}__{{ p }}"
+                       {% if p in config.get(('page', page.key), []) %}checked{% endif %}>
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="fscf-card mb-4">
+    <div class="fscf-card-header"><i class="bi bi-chat-dots-fill me-2"></i>Catégories du forum</div>
+    <div class="fscf-card-body p-0">
+      <div class="table-responsive">
+        <table class="fscf-table align-middle text-center">
+          <thead>
+            <tr>
+              <th class="text-start">Catégorie</th>
+              {% for p in profils %}<th style="font-size:11px;white-space:nowrap;">{{ profils_labels[p] }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for cat in forum_cats %}
+            <tr>
+              <td class="text-start">{{ cat }}</td>
+              {% for p in profils %}
+              <td>
+                <input type="checkbox" name="forum_cat__{{ cat }}__{{ p }}"
+                       {% if p in config.get(('forum_cat', cat), []) %}checked{% endif %}>
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-muted small p-3 mb-0">
+        Une catégorie doit d'abord être accessible via la ligne "Forum" ci-dessus — ce tableau affine ensuite
+        qui, parmi les personnes ayant accès au forum, voit cette catégorie précise.
+      </p>
+    </div>
+  </div>
+
+  <button type="submit" class="btn-fscf py-2 px-4">
+    <i class="bi bi-check-lg me-2"></i>Enregistrer
+  </button>
+</form>
+{% endblock %}
