@@ -485,6 +485,55 @@ def require_droit(droit):
             return f(*args, **kwargs)
         return wrapped
     return decorator
+
+def get_menus_visibles(user):
+    """Renvoie les menus/pages disponibles pour cet utilisateur, avec la même
+    condition que celle vérifiée par la route elle-même (pour ne jamais
+    afficher une vignette qui mènerait à une erreur 403)."""
+    return {
+        'participants': {
+            'visible': user.has_droit('participants') or user.has_droit('competition') or user.has_droit('organisation'),
+            'url': 'participants_list', 'icon': 'bi-people-fill', 'label': 'Participants',
+        },
+        'juges': {
+            'visible': user.has_droit('juges'),
+            'url': 'juges_list', 'icon': 'bi-award-fill', 'label': 'Juges',
+        },
+        'benevoles': {
+            'visible': True,  # route ouverte à tout utilisateur connecté
+            'url': 'benevoles_list', 'icon': 'bi-person-heart', 'label': 'Bénévoles',
+        },
+        'planning': {
+            'visible': user.has_droit('organisation') or user.has_droit('communication'),
+            'url': 'planning', 'icon': 'bi-calendar-week-fill', 'label': 'Planning',
+        },
+        'programme': {
+            'visible': user.role == 'juge' or user.has_droit('competition') or user.has_droit('participants') or user.has_droit('communication') or user.has_droit('organisation'),
+            'url': 'programme', 'icon': 'bi-list-columns-reverse', 'label': 'Programme',
+        },
+        'forum': {
+            'visible': user.role == 'juge' or user.has_droit('communication') or user.has_droit('organisation'),
+            'url': 'forum', 'icon': 'bi-chat-dots-fill', 'label': 'Forum',
+        },
+        'scanner': {
+            'visible': user.is_staff or user.has_droit('competition') or user.has_droit('organisation') or user.has_droit('juges'),
+            'url': 'scanner', 'icon': 'bi-qr-code-scan', 'label': 'Scanner',
+        },
+        'taches': {
+            'visible': user.is_staff or user.has_droit('organisation') or user.has_droit('communication'),
+            'url': 'taches_list', 'icon': 'bi-check2-square', 'label': 'Tâches',
+        },
+        'budget': {
+            'visible': user.is_staff or user.has_droit('organisation'),
+            'url': 'budget_list', 'icon': 'bi-cash-coin', 'label': 'Budget',
+        },
+        'administration': {
+            'visible': user.has_droit('administration'),
+            'url': 'admin', 'icon': 'bi-gear-fill', 'label': 'Administration',
+        },
+    }
+app.jinja_env.globals['get_menus_visibles'] = get_menus_visibles
+
 # ── QR / BADGE ────────────────────────────────────────────────────────────────
 def qr_to_base64(token):
     qr = qrcode.QRCode(version=1, box_size=10, border=3)
@@ -894,7 +943,8 @@ def dashboard():
         ORDER BY timestamp DESC LIMIT 8
     ''').fetchall()
     conn.close()
-    return render_template('dashboard.html', stats=stats, logs=logs)
+    menus = get_menus_visibles(current_user)
+    return render_template('dashboard.html', stats=stats, logs=logs, menus=menus)
 
 # ── PARTICIPANTS ──────────────────────────────────────────────────────────────
 @app.route('/participants')
