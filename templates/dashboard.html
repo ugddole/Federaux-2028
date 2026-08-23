@@ -64,6 +64,44 @@
   </div>
 </div>
 
+<!-- Menus : vignettes cliquables filtrées selon les droits de l'utilisateur -->
+<div class="fscf-card mb-4">
+  <div class="fscf-card-header"><i class="bi bi-grid-fill me-2"></i>Menus</div>
+  <div class="fscf-card-body">
+    <div class="row g-3">
+      {% for key, m in menus.items() %}
+        {% if m.visible %}
+        <div class="col-6 col-md-4 col-lg-3">
+          <a href="{{ url_for(m.url) }}" class="menu-tile text-decoration-none d-flex flex-column align-items-center justify-content-center text-center p-3">
+            <i class="bi {{ m.icon }} menu-tile-icon"></i>
+            <span class="menu-tile-label mt-2">{{ m.label }}</span>
+          </a>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<style>
+  .menu-tile {
+    background: #f8f9fb;
+    border: 1px solid #e9e9ef;
+    border-radius: 14px;
+    min-height: 100px;
+    color: #003366;
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+  }
+  .menu-tile:hover {
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(0,0,0,.08);
+    transform: translateY(-2px);
+    color: #E2007A;
+  }
+  .menu-tile-icon { font-size: 1.7rem; }
+  .menu-tile-label { font-size: .85rem; font-weight: 600; }
+</style>
+
 <div class="row g-4">
   <!-- Accès rapides -->
   <div class="col-lg-4">
