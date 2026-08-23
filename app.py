@@ -531,6 +531,10 @@ def get_menus_visibles(user):
             'visible': user.has_droit('administration'),
             'url': 'admin', 'icon': 'bi-gear-fill', 'label': 'Administration',
         },
+        'droits_recap': {
+            'visible': user.has_droit('administration'),
+            'url': 'admin_droits_recap', 'icon': 'bi-shield-check', 'label': 'Récap. droits',
+        },
     }
 app.jinja_env.globals['get_menus_visibles'] = get_menus_visibles
 
@@ -1865,6 +1869,53 @@ def api_scan():
     return jsonify(statut='invalide', message='QR code non reconnu'), 404
 
 # ── ADMIN ─────────────────────────────────────────────────────────────────────
+class _FakeUser:
+    """Utilisateur fictif utilisé uniquement pour calculer le tableau récapitulatif
+    des droits — ne touche jamais à la base de données."""
+    def __init__(self, droit=None, role='benevole', is_staff=False, is_admin=False):
+        self._droit = droit
+        self.role = role
+        self._is_staff = is_staff
+        self._is_admin = is_admin
+    @property
+    def is_admin(self): return self._is_admin
+    @property
+    def is_staff(self): return self._is_staff
+    def has_droit(self, d):
+        return self._is_admin or d == self._droit
+
+@app.route('/admin/droits')
+@login_required
+@require_droit('administration')
+def admin_droits_recap():
+    # Profils testés : chaque droit individuel, + le rôle juge, + le statut staff
+    profils = [(d, d.capitalize()) for d in DROITS_DISPONIBLES]
+    profils.append(('_juge_role', 'Rôle : Juge'))
+    profils.append(('_staff_role', 'Staff (admin/responsable)'))
+
+    def make_fake(profil_key):
+        if profil_key == '_juge_role':
+            return _FakeUser(role='juge')
+        if profil_key == '_staff_role':
+            return _FakeUser(is_staff=True, role='responsable')
+        return _FakeUser(droit=profil_key)
+
+    labels_menus = get_menus_visibles(current_user)  # sert juste à récupérer labels/icônes
+    menus_recap = []
+    for key, info in labels_menus.items():
+        cols = [get_menus_visibles(make_fake(pk))[key]['visible'] for pk, _ in profils]
+        menus_recap.append({'label': info['label'], 'icon': info['icon'], 'cols': cols})
+
+    forum_recap = []
+    for cat in sorted(FORUM_CATS_RESTREINTES):
+        cols = [cat not in forum_categories_masquees(make_fake(pk)) for pk, _ in profils]
+        forum_recap.append({'label': cat, 'cols': cols})
+
+    return render_template('admin_droits_recap.html',
+                            profils=[label for _, label in profils],
+                            menus_recap=menus_recap,
+                            forum_recap=forum_recap)
+
 @app.route('/admin')
 @login_required
 @require_droit('administration')
