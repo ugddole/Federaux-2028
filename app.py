@@ -141,6 +141,12 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
     c.executescript('''
+        CREATE TABLE IF NOT EXISTS droits_config (
+            resource_type TEXT NOT NULL,
+            resource_key TEXT NOT NULL,
+            droit TEXT NOT NULL,
+            PRIMARY KEY (resource_type, resource_key, droit)
+        );
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
@@ -299,6 +305,35 @@ def init_db():
         );
     ''')
     conn.commit()
+    conn.close()
+
+# ── Valeurs de départ, reproduisant les règles qui existaient avant le passage
+# à la matrice éditable — ne s'appliquent que si la table est encore vide, pour
+# ne jamais écraser des réglages que l'admin aurait déjà faits.
+DEFAULT_DROITS_CONFIG = {
+    ('page', 'participants'): {'participants', 'competition', 'organisation'},
+    ('page', 'juges'): {'juges'},
+    ('page', 'benevoles'): set(),  # ouvert à tout utilisateur connecté
+    ('page', 'planning'): {'organisation', 'communication'},
+    ('page', 'programme'): {'competition', 'participants', 'communication', 'organisation', 'role_juge'},
+    ('page', 'forum'): {'communication', 'organisation', 'role_juge'},
+    ('page', 'scanner'): {'competition', 'organisation', 'juges', 'staff'},
+    ('page', 'taches'): {'organisation', 'communication', 'staff'},
+    ('page', 'budget'): {'organisation', 'staff'},
+    ('forum_cat', 'Bénévoles'): {'organisation', 'communication', 'staff'},
+    ('forum_cat', 'Technique & Matériel'): {'organisation', 'communication', 'staff'},
+}
+
+def seed_droits_config_if_empty():
+    conn = get_db()
+    count = conn.execute('SELECT COUNT(*) FROM droits_config').fetchone()[0]
+    if count == 0:
+        for (rtype, rkey), droits in DEFAULT_DROITS_CONFIG.items():
+            for d in droits:
+                conn.execute(
+                    'INSERT OR IGNORE INTO droits_config (resource_type,resource_key,droit) VALUES (?,?,?)',
+                    (rtype, rkey, d))
+        conn.commit()
     conn.close()
 
 def migrate_db():
@@ -486,56 +521,77 @@ def require_droit(droit):
         return wrapped
     return decorator
 
+PAGE_DEFS = {
+    'participants': {'url': 'participants_list', 'icon': 'bi-people-fill', 'label': 'Participants'},
+    'juges': {'url': 'juges_list', 'icon': 'bi-award-fill', 'label': 'Juges'},
+    'benevoles': {'url': 'benevoles_list', 'icon': 'bi-person-heart', 'label': 'Bénévoles'},
+    'planning': {'url': 'planning', 'icon': 'bi-calendar-week-fill', 'label': 'Planning'},
+    'programme': {'url': 'programme', 'icon': 'bi-list-columns-reverse', 'label': 'Programme'},
+    'forum': {'url': 'forum', 'icon': 'bi-chat-dots-fill', 'label': 'Forum'},
+    'scanner': {'url': 'scanner', 'icon': 'bi-qr-code-scan', 'label': 'Scanner'},
+    'taches': {'url': 'taches_list', 'icon': 'bi-check2-square', 'label': 'Tâches'},
+    'budget': {'url': 'budget_list', 'icon': 'bi-cash-coin', 'label': 'Budget'},
+}
+# 'administration' et 'droits_recap' restent volontairement hors matrice éditable
+# (accès admin uniquement, en dur) pour qu'un mauvais réglage ne puisse jamais
+# verrouiller l'accès à la page qui sert justement à corriger les réglages.
+PAGE_DEFS_ADMIN_ONLY = {
+    'administration': {'url': 'admin', 'icon': 'bi-gear-fill', 'label': 'Administration'},
+    'droits_recap': {'url': 'admin_droits_config', 'icon': 'bi-shield-check', 'label': 'Gérer les droits'},
+}
+
+# Colonnes de la matrice de droits : les droits attribuables aux bénévoles,
+# + deux profils calculés à partir du rôle (non cochables sur une fiche
+# bénévole, mais utilisables comme condition d'accès dans la matrice).
+PROFILS_CONFIG = DROITS_DISPONIBLES + ['role_juge', 'staff']
+PROFILS_LABELS = {
+    'participants': 'Participants', 'competition': 'Compétition', 'communication': 'Communication',
+    'organisation': 'Organisation', 'administration': 'Administration', 'juges': 'Juges',
+    'role_juge': 'Rôle : Juge', 'staff': 'Staff (admin/responsable)',
+}
+
+def get_droits_config():
+    """Lit toute la table droits_config en une fois : {(resource_type, resource_key): {droits...}}"""
+    conn = get_db()
+    rows = conn.execute('SELECT resource_type, resource_key, droit FROM droits_config').fetchall()
+    conn.close()
+    config = {}
+    for r in rows:
+        config.setdefault((r['resource_type'], r['resource_key']), set()).add(r['droit'])
+    return config
+
+def get_profil_set(user):
+    """Ensemble des 'profils' que possède cet utilisateur, pour comparaison avec
+    les droits requis d'une ressource (OR logique : un seul en commun suffit)."""
+    s = set(user.droits)
+    if user.role == 'juge':
+        s.add('role_juge')
+    if user.is_staff:
+        s.add('staff')
+    return s
+
+def est_autorise(resource_type, resource_key, user, config=None):
+    if user.is_admin:
+        return True
+    if config is None:
+        config = get_droits_config()
+    requis = config.get((resource_type, resource_key))
+    if not requis:
+        return True  # ressource non configurée = ouverte à tout utilisateur connecté
+    return bool(requis & get_profil_set(user))
+
 def get_menus_visibles(user):
-    """Renvoie les menus/pages disponibles pour cet utilisateur, avec la même
-    condition que celle vérifiée par la route elle-même (pour ne jamais
-    afficher une vignette qui mènerait à une erreur 403)."""
-    return {
-        'participants': {
-            'visible': user.has_droit('participants') or user.has_droit('competition') or user.has_droit('organisation'),
-            'url': 'participants_list', 'icon': 'bi-people-fill', 'label': 'Participants',
-        },
-        'juges': {
-            'visible': user.has_droit('juges'),
-            'url': 'juges_list', 'icon': 'bi-award-fill', 'label': 'Juges',
-        },
-        'benevoles': {
-            'visible': True,  # route ouverte à tout utilisateur connecté
-            'url': 'benevoles_list', 'icon': 'bi-person-heart', 'label': 'Bénévoles',
-        },
-        'planning': {
-            'visible': user.has_droit('organisation') or user.has_droit('communication'),
-            'url': 'planning', 'icon': 'bi-calendar-week-fill', 'label': 'Planning',
-        },
-        'programme': {
-            'visible': user.role == 'juge' or user.has_droit('competition') or user.has_droit('participants') or user.has_droit('communication') or user.has_droit('organisation'),
-            'url': 'programme', 'icon': 'bi-list-columns-reverse', 'label': 'Programme',
-        },
-        'forum': {
-            'visible': user.role == 'juge' or user.has_droit('communication') or user.has_droit('organisation'),
-            'url': 'forum', 'icon': 'bi-chat-dots-fill', 'label': 'Forum',
-        },
-        'scanner': {
-            'visible': user.is_staff or user.has_droit('competition') or user.has_droit('organisation') or user.has_droit('juges'),
-            'url': 'scanner', 'icon': 'bi-qr-code-scan', 'label': 'Scanner',
-        },
-        'taches': {
-            'visible': user.is_staff or user.has_droit('organisation') or user.has_droit('communication'),
-            'url': 'taches_list', 'icon': 'bi-check2-square', 'label': 'Tâches',
-        },
-        'budget': {
-            'visible': user.is_staff or user.has_droit('organisation'),
-            'url': 'budget_list', 'icon': 'bi-cash-coin', 'label': 'Budget',
-        },
-        'administration': {
-            'visible': user.has_droit('administration'),
-            'url': 'admin', 'icon': 'bi-gear-fill', 'label': 'Administration',
-        },
-        'droits_recap': {
-            'visible': user.has_droit('administration'),
-            'url': 'admin_droits_recap', 'icon': 'bi-shield-check', 'label': 'Récap. droits',
-        },
-    }
+    """Renvoie les menus/pages disponibles pour cet utilisateur, en s'appuyant
+    sur la matrice de droits configurable par l'admin (table droits_config)."""
+    config = get_droits_config()
+    menus = {}
+    for key, info in PAGE_DEFS.items():
+        menus[key] = dict(info)
+        menus[key]['visible'] = est_autorise('page', key, user, config)
+    for key, info in PAGE_DEFS_ADMIN_ONLY.items():
+        menus[key] = dict(info)
+        menus[key]['visible'] = user.is_admin
+    return menus
 app.jinja_env.globals['get_menus_visibles'] = get_menus_visibles
 
 # ── QR / BADGE ────────────────────────────────────────────────────────────────
@@ -954,7 +1010,7 @@ def dashboard():
 @app.route('/participants')
 @login_required
 def participants_list():
-    if not (current_user.has_droit('participants') or current_user.has_droit('competition') or current_user.has_droit('organisation')): abort(403)
+    if not est_autorise('page', 'participants', current_user): abort(403)
     conn = get_db()
     q, cat = request.args.get('q',''), request.args.get('cat','')
     page = max(1, request.args.get('page', 1, type=int))
@@ -1094,7 +1150,7 @@ JUGE_CATEGORIES = ['Juge Régional', 'Juge National', 'Juge International', 'Jug
 @app.route('/juges')
 @login_required
 def juges_list():
-    if not (current_user.has_droit('juges')): abort(403)
+    if not est_autorise('page', 'juges', current_user): abort(403)
     conn = get_db()
     q, cat = request.args.get('q',''), request.args.get('cat','')
     page = max(1, request.args.get('page', 1, type=int))
@@ -1353,6 +1409,7 @@ def juges_import():
 @app.route('/benevoles')
 @login_required
 def benevoles_list():
+    if not est_autorise('page', 'benevoles', current_user): abort(403)
     conn = get_db()
     page = max(1, request.args.get('page', 1, type=int))
     total = conn.execute('SELECT COUNT(*) FROM benevoles').fetchone()[0]
@@ -1459,7 +1516,7 @@ def _mission_item(conn, m):
 @app.route('/planning')
 @login_required
 def planning():
-    if not (current_user.has_droit('organisation') or current_user.has_droit('communication')): abort(403)
+    if not est_autorise('page', 'planning', current_user): abort(403)
     conn = get_db()
     parent_missions = conn.execute(
         'SELECT * FROM missions WHERE parent_id IS NULL ORDER BY jour, heure_debut'
@@ -1539,7 +1596,7 @@ def api_affecter():
 @app.route('/programme')
 @login_required
 def programme():
-    if not (current_user.role == 'juge' or current_user.has_droit('competition') or current_user.has_droit('participants') or current_user.has_droit('communication') or current_user.has_droit('organisation')): abort(403)
+    if not est_autorise('page', 'programme', current_user): abort(403)
     conn = get_db()
     items = conn.execute('SELECT * FROM programme ORDER BY ordre,heure_debut').fetchall()
     conn.close()
@@ -1685,21 +1742,22 @@ def programme_import():
     return render_template('programme_import.html')
 
 # ── FORUM ─────────────────────────────────────────────────────────────────────
-# Catégories masquées pour les Participants, les Juges et le droit Compétition
-# (sauf s'ils ont aussi le droit organisation/communication, ou sont admin)
-FORUM_CATS_RESTREINTES = {'Bénévoles', 'Technique & Matériel'}
-
 def forum_categories_masquees(user):
-    if user.is_admin or user.has_droit('organisation') or user.has_droit('communication'):
+    """Catégories du forum non visibles pour cet utilisateur, d'après la matrice
+    de droits configurable (/admin/droits). Une catégorie non configurée est
+    ouverte à tout utilisateur ayant accès au forum."""
+    if user.is_admin:
         return set()
-    if user.role == 'juge' or user.role == 'participant' or user.has_droit('competition') or user.has_droit('participants'):
-        return FORUM_CATS_RESTREINTES
-    return set()
+    conn = get_db()
+    all_cats = [r['nom'] for r in conn.execute('SELECT nom FROM forum_categories').fetchall()]
+    conn.close()
+    config = get_droits_config()
+    return {cat for cat in all_cats if not est_autorise('forum_cat', cat, user, config)}
 
 @app.route('/forum')
 @login_required
 def forum():
-    if not (current_user.role == 'juge' or current_user.has_droit('communication') or current_user.has_droit('organisation')): abort(403)
+    if not est_autorise('page', 'forum', current_user): abort(403)
     conn = get_db()
     masquees = forum_categories_masquees(current_user)
     cats = conn.execute('''
@@ -1797,7 +1855,7 @@ def forum_resolve(id):
 @app.route('/scanner')
 @login_required
 def scanner():
-    if not (current_user.is_staff or current_user.has_droit('competition') or current_user.has_droit('organisation') or current_user.has_droit('juges')):
+    if not est_autorise('page', 'scanner', current_user):
         abort(403)
     conn = get_db()
     logs = conn.execute('''
@@ -1869,52 +1927,35 @@ def api_scan():
     return jsonify(statut='invalide', message='QR code non reconnu'), 404
 
 # ── ADMIN ─────────────────────────────────────────────────────────────────────
-class _FakeUser:
-    """Utilisateur fictif utilisé uniquement pour calculer le tableau récapitulatif
-    des droits — ne touche jamais à la base de données."""
-    def __init__(self, droit=None, role='benevole', is_staff=False, is_admin=False):
-        self._droit = droit
-        self.role = role
-        self._is_staff = is_staff
-        self._is_admin = is_admin
-    @property
-    def is_admin(self): return self._is_admin
-    @property
-    def is_staff(self): return self._is_staff
-    def has_droit(self, d):
-        return self._is_admin or d == self._droit
-
-@app.route('/admin/droits')
+@app.route('/admin/droits', methods=['GET', 'POST'])
 @login_required
-@require_droit('administration')
-def admin_droits_recap():
-    # Profils testés : chaque droit individuel, + le rôle juge, + le statut staff
-    profils = [(d, d.capitalize()) for d in DROITS_DISPONIBLES]
-    profils.append(('_juge_role', 'Rôle : Juge'))
-    profils.append(('_staff_role', 'Staff (admin/responsable)'))
+def admin_droits_config():
+    if not current_user.is_admin: abort(403)
+    conn = get_db()
 
-    def make_fake(profil_key):
-        if profil_key == '_juge_role':
-            return _FakeUser(role='juge')
-        if profil_key == '_staff_role':
-            return _FakeUser(is_staff=True, role='responsable')
-        return _FakeUser(droit=profil_key)
+    if request.method == 'POST':
+        forum_cats = [r['nom'] for r in conn.execute('SELECT nom FROM forum_categories').fetchall()]
+        resources = [('page', k) for k in PAGE_DEFS] + [('forum_cat', c) for c in forum_cats]
+        conn.execute('DELETE FROM droits_config')
+        for resource_type, resource_key in resources:
+            for droit in PROFILS_CONFIG:
+                champ = f"{resource_type}__{resource_key}__{droit}"
+                if request.form.get(champ):
+                    conn.execute(
+                        'INSERT INTO droits_config (resource_type, resource_key, droit) VALUES (?,?,?)',
+                        (resource_type, resource_key, droit))
+        conn.commit()
+        conn.close()
+        flash('✅ Droits mis à jour.', 'success')
+        return redirect(url_for('admin_droits_config'))
 
-    labels_menus = get_menus_visibles(current_user)  # sert juste à récupérer labels/icônes
-    menus_recap = []
-    for key, info in labels_menus.items():
-        cols = [get_menus_visibles(make_fake(pk))[key]['visible'] for pk, _ in profils]
-        menus_recap.append({'label': info['label'], 'icon': info['icon'], 'cols': cols})
-
-    forum_recap = []
-    for cat in sorted(FORUM_CATS_RESTREINTES):
-        cols = [cat not in forum_categories_masquees(make_fake(pk)) for pk, _ in profils]
-        forum_recap.append({'label': cat, 'cols': cols})
-
-    return render_template('admin_droits_recap.html',
-                            profils=[label for _, label in profils],
-                            menus_recap=menus_recap,
-                            forum_recap=forum_recap)
+    config = get_droits_config()
+    pages_rows = [{'key': k, 'label': v['label'], 'icon': v['icon']} for k, v in PAGE_DEFS.items()]
+    forum_cats = [r['nom'] for r in conn.execute('SELECT nom FROM forum_categories ORDER BY ordre').fetchall()]
+    conn.close()
+    return render_template('admin_droits_config.html',
+                            profils=PROFILS_CONFIG, profils_labels=PROFILS_LABELS,
+                            pages=pages_rows, forum_cats=forum_cats, config=config)
 
 @app.route('/admin')
 @login_required
@@ -2272,7 +2313,7 @@ def taches_urgentes():
 @app.route('/taches')
 @login_required
 def taches_list():
-    if not (current_user.is_staff or current_user.has_droit('organisation') or current_user.has_droit('communication')): abort(403)
+    if not est_autorise('page', 'taches', current_user): abort(403)
     conn = get_db()
     taches = conn.execute('''
         SELECT t.*, m.nom mission_nom, m.couleur mission_couleur, u.nom resp_nom, u.prenom resp_prenom
@@ -2604,7 +2645,7 @@ def _editable_budget_categories(conn):
 @app.route('/budget')
 @login_required
 def budget_list():
-    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    if not est_autorise('page', 'budget', current_user): abort(403)
     conn = get_db()
     lignes = conn.execute('SELECT * FROM budget_lignes ORDER BY categorie, code').fetchall()
     by_cat = {}
@@ -2934,6 +2975,7 @@ def planning_export():
 # ── RUN ───────────────────────────────────────────────────────────────────────
 init_db()
 migrate_db()
+seed_droits_config_if_empty()
 start_backup_thread()
 
 if __name__ == '__main__':
