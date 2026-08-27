@@ -11,6 +11,9 @@
 <a href="{{ url_for('participants_badges_all') }}" class="btn-fscf-outline me-2" title="Générer un PDF avec tous les badges manquants" style="border-color:#e8761a;color:#e8761a;">
   <i class="bi bi-file-earmark-pdf-fill me-1"></i>Badges manquants
 </a>
+<a href="{{ url_for('participants_export') }}" class="btn-fscf-outline me-2" title="Exporter la liste en Excel" style="border-color:#0066CC;color:#0066CC;">
+  <i class="bi bi-download me-1"></i>Exporter
+</a>
 <a href="{{ url_for('participant_new') }}" class="btn-fscf"><i class="bi bi-plus-lg me-1"></i>Ajouter</a>
 {% endif %}
 {% endblock %}
