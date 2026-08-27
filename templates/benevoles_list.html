@@ -9,6 +9,9 @@
 <a href="{{ url_for('benevoles_export') }}" class="btn-fscf-outline me-2" title="Exporter la liste en Excel" style="border-color:#0066CC;color:#0066CC;">
   <i class="bi bi-download me-1"></i>Exporter
 </a>
+<a href="{{ url_for('benevoles_import') }}" class="btn-fscf-outline me-2" title="Importer depuis un fichier Excel" style="border-color:#009944;color:#009944;">
+  <i class="bi bi-upload me-1"></i>Importer
+</a>
 <a href="{{ url_for('benevole_new') }}" class="btn-fscf me-2"><i class="bi bi-plus-lg me-1"></i>Ajouter</a>
 <a href="{{ url_for('planning') }}" class="btn-fscf-outline"><i class="bi bi-calendar3-week me-1"></i>Planning</a>
 {% endif %}
