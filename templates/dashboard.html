@@ -138,6 +138,11 @@
           <i class="bi bi-check2-square me-2"></i>Nouvelle tâche
         </a>
         {% endif %}
+        {% if current_user.has_droit('organisation') %}
+        <a href="{{ url_for('materiel_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#6a0dad;color:#6a0dad;">
+          <i class="bi bi-box-seam-fill me-2"></i>Nouveau matériel
+        </a>
+        {% endif %}
       </div>
     </div>
   </div>
