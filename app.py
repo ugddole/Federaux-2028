@@ -1043,6 +1043,45 @@ def participants_list():
     return render_template('participants_list.html', items=items, cats=cats, q=q, cat=cat,
                             page=page, total_pages=total_pages, total=total)
 
+@app.route('/participants/export')
+@login_required
+def participants_export():
+    if not (current_user.is_admin or current_user.has_droit('competition')): abort(403)
+    conn = get_db()
+    items = conn.execute('''
+        SELECT p.*,u.nom,u.prenom,u.email FROM participants p
+        JOIN users u ON p.user_id=u.id ORDER BY p.categorie, u.nom, u.prenom
+    ''').fetchall()
+    conn.close()
+
+    headers = ['Dossard', 'Nom', 'Prénom', 'Email', 'Club', 'Région', 'Catégorie', 'Badge généré']
+    rows = []
+    for p in items:
+        rows.append({
+            'dossard': p['numero_dossard'] or '',
+            'nom': p['nom'],
+            'prenom': p['prenom'],
+            'email': p['email'],
+            'club': p['club'],
+            'region': p['region'] or '',
+            'categorie': p['categorie'],
+            'badge': 'Oui' if p['badge_generated'] else 'Non',
+        })
+
+    wb = build_export_workbook(
+        export_name="Gymnastes participants",
+        headers=headers,
+        rows=rows,
+        category_field="categorie",
+    )
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                      download_name=f'gymnastes_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 @app.route('/participants/new', methods=['GET','POST'])
 @login_required
 def participant_new():
@@ -1434,6 +1473,52 @@ def benevoles_list():
     ''', (PER_PAGE, (page-1)*PER_PAGE)).fetchall()
     conn.close()
     return render_template('benevoles_list.html', items=items, page=page, total_pages=total_pages, total=total)
+
+@app.route('/benevoles/export')
+@login_required
+def benevoles_export():
+    if not current_user.is_admin: abort(403)
+    conn = get_db()
+    items = conn.execute('''
+        SELECT b.*,u.nom,u.prenom,u.email,u.droits,COUNT(a.id) nb
+        FROM benevoles b JOIN users u ON b.user_id=u.id
+        LEFT JOIN affectations a ON b.id=a.benevole_id
+        GROUP BY b.id ORDER BY u.nom,u.prenom
+    ''').fetchall()
+    conn.close()
+
+    droit_labels = {
+        'participants': 'Participants', 'competition': 'Compétition', 'communication': 'Communication',
+        'organisation': 'Organisation', 'administration': 'Administration', 'juges': 'Juges',
+    }
+
+    headers = ['Nom', 'Prénom', 'Email', 'Téléphone', 'T-shirt', 'Missions', 'Droits']
+    rows = []
+    for b in items:
+        b_droits = (b['droits'] or '').split(',') if b['droits'] else []
+        droits_txt = ', '.join(droit_labels.get(d, d) for d in b_droits if d)
+        rows.append({
+            'nom': b['nom'],
+            'prenom': b['prenom'],
+            'email': b['email'],
+            'telephone': b['telephone'] or '',
+            'tshirt': b['tshirt'] or '',
+            'missions': b['nb'],
+            'droits': droits_txt,
+        })
+
+    wb = build_export_workbook(
+        export_name="Bénévoles",
+        headers=headers,
+        rows=rows,
+    )
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                      download_name=f'benevoles_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/benevoles/<int:id>/badge')
 @login_required
@@ -2751,6 +2836,49 @@ def budget_delete(id):
     conn.commit(); conn.close()
     flash('Ligne de budget supprimée.', 'success')
     return redirect(url_for('budget_list'))
+
+# ── EXPORT BUDGET ─────────────────────────────────────────────────────────────
+STATUT_BUDGET_LABELS = {'prevu': 'Prévu', 'engage': 'Engagé', 'realise': 'Réalisé'}
+
+@app.route('/budget/export')
+@login_required
+def budget_export():
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    conn = get_db()
+    lignes = conn.execute('SELECT * FROM budget_lignes ORDER BY categorie, code').fetchall()
+    conn.close()
+
+    headers = ['Catégorie', 'Code', 'Poste', 'Détail', 'Coût estimé', 'Subvention prévue',
+               'Reste à charge (prév.)', 'Coût réel', 'Subvention reçue', 'Statut', 'Notes']
+    rows = []
+    for l in lignes:
+        rows.append({
+            'categorie': l['categorie'] or '',
+            'code': l['code'] or '',
+            'poste': l['poste'],
+            'detail': l['detail'] or '',
+            'cout_estime': l['cout_estime'],
+            'subvention_prevue': l['subvention_prevue'],
+            'reste_a_charge_prevu': l['reste_a_charge_prevu'],
+            'cout_reel': l['cout_reel'],
+            'subvention_recue': l['subvention_recue'],
+            'statut': STATUT_BUDGET_LABELS.get(l['statut'], l['statut']),
+            'notes': l['notes'] or '',
+        })
+
+    wb = build_export_workbook(
+        export_name="Suivi budgétaire",
+        headers=headers,
+        rows=rows,
+        category_field="categorie",
+    )
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                      download_name=f'budget_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ── IMPORT BUDGET ─────────────────────────────────────────────────────────────
 _CAT_RE = re.compile(r'^\s*\d+\s*-\s*')
