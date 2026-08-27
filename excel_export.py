@@ -135,6 +135,10 @@ def build_export_workbook(export_name, headers, rows, category_field=None,
 
     ws.sheet_view.showGridLines = False
 
+    # --- Filtre automatique sur les colonnes (ligne d'en-têtes) ---
+    last_row = 2 + len(rows) if rows else 2
+    ws.auto_filter.ref = f"A2:{last_col_letter}{last_row}"
+
     return wb
 
 
