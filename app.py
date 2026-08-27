@@ -303,6 +303,15 @@ def init_db():
             notes TEXT DEFAULT '',
             updated_at TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS materiel (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            intitule TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            fournisseur TEXT DEFAULT '',
+            quantite INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
     ''')
     conn.commit()
     conn.close()
@@ -319,6 +328,7 @@ DEFAULT_DROITS_CONFIG = {
     ('page', 'forum'): {'communication', 'organisation', 'role_juge'},
     ('page', 'scanner'): {'competition', 'organisation', 'juges', 'staff'},
     ('page', 'taches'): {'organisation', 'communication', 'staff'},
+    ('page', 'materiel'): {'organisation', 'communication', 'staff'},
     ('page', 'budget'): {'organisation', 'staff'},
     ('forum_cat', 'Bénévoles'): {'organisation', 'communication', 'staff'},
     ('forum_cat', 'Technique & Matériel'): {'organisation', 'communication', 'staff'},
@@ -530,6 +540,7 @@ PAGE_DEFS = {
     'forum': {'url': 'forum', 'icon': 'bi-chat-dots-fill', 'label': 'Forum'},
     'scanner': {'url': 'scanner', 'icon': 'bi-qr-code-scan', 'label': 'Scanner'},
     'taches': {'url': 'taches_list', 'icon': 'bi-check2-square', 'label': 'Tâches'},
+    'materiel': {'url': 'materiel_list', 'icon': 'bi-box-seam-fill', 'label': 'Matériel'},
     'budget': {'url': 'budget_list', 'icon': 'bi-cash-coin', 'label': 'Budget'},
 }
 # 'administration' et 'droits_recap' restent volontairement hors matrice éditable
@@ -2971,6 +2982,191 @@ def planning_export():
     return send_file(buf, as_attachment=True,
                       download_name=f'planning_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
                       mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+# ── MATÉRIEL ──────────────────────────────────────────────────────────────────
+@app.route('/materiel')
+@login_required
+def materiel_list():
+    if not est_autorise('page', 'materiel', current_user): abort(403)
+    conn = get_db()
+    items = conn.execute('SELECT * FROM materiel ORDER BY intitule').fetchall()
+    conn.close()
+    return render_template('materiel_list.html', items=items)
+
+@app.route('/materiel/new', methods=['GET', 'POST'])
+@login_required
+def materiel_new():
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    if request.method == 'POST':
+        f = request.form
+        intitule = f.get('intitule', '').strip()
+        if not intitule:
+            flash('L\'intitulé est obligatoire.', 'danger')
+            return render_template('materiel_form.html', action='new', item=None)
+        conn = get_db()
+        conn.execute('''INSERT INTO materiel (intitule, description, fournisseur, quantite, updated_at)
+            VALUES (?,?,?,?,datetime('now'))''',
+            (intitule, f.get('description', '').strip(), f.get('fournisseur', '').strip(),
+             int(f.get('quantite') or 1)))
+        conn.commit(); conn.close()
+        flash('Matériel ajouté.', 'success')
+        return redirect(url_for('materiel_list'))
+    return render_template('materiel_form.html', action='new', item=None)
+
+@app.route('/materiel/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def materiel_edit(id):
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    conn = get_db()
+    item = conn.execute('SELECT * FROM materiel WHERE id=?', (id,)).fetchone()
+    if not item: conn.close(); abort(404)
+    if request.method == 'POST':
+        f = request.form
+        intitule = f.get('intitule', '').strip()
+        if not intitule:
+            conn.close()
+            flash('L\'intitulé est obligatoire.', 'danger')
+            return render_template('materiel_form.html', action='edit', item=item)
+        conn.execute('''UPDATE materiel SET intitule=?, description=?, fournisseur=?, quantite=?, updated_at=datetime('now')
+            WHERE id=?''',
+            (intitule, f.get('description', '').strip(), f.get('fournisseur', '').strip(),
+             int(f.get('quantite') or 1), id))
+        conn.commit(); conn.close()
+        flash('Matériel mis à jour.', 'success')
+        return redirect(url_for('materiel_list'))
+    conn.close()
+    return render_template('materiel_form.html', action='edit', item=item)
+
+@app.route('/materiel/<int:id>/delete', methods=['POST'])
+@login_required
+def materiel_delete(id):
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    conn = get_db()
+    conn.execute('DELETE FROM materiel WHERE id=?', (id,))
+    conn.commit(); conn.close()
+    flash('Matériel supprimé.', 'success')
+    return redirect(url_for('materiel_list'))
+
+@app.route('/materiel/export')
+@login_required
+def materiel_export():
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    conn = get_db()
+    items = conn.execute('SELECT * FROM materiel ORDER BY intitule').fetchall()
+    conn.close()
+
+    headers = ['Intitulé', 'Description', 'Fournisseur', 'Quantité']
+    rows = []
+    for m in items:
+        rows.append({
+            'intitule': m['intitule'],
+            'description': m['description'] or '',
+            'fournisseur': m['fournisseur'] or '',
+            'quantite': m['quantite'],
+        })
+
+    wb = build_export_workbook(
+        export_name="Matériel",
+        headers=headers,
+        rows=rows,
+    )
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                      download_name=f'materiel_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+def parse_materiel_file(file_storage):
+    import openpyxl
+    wb = openpyxl.load_workbook(file_storage, data_only=True)
+    ws = None
+    for s in wb.worksheets:
+        if 'materiel' in _normalize(s.title) or 'matériel' in s.title.lower():
+            ws = s
+            break
+    if ws is None:
+        ws = wb.worksheets[0]
+    rows = list(ws.iter_rows(values_only=True))
+
+    data = []
+    for row in rows[2:]:
+        if not row or not row[0]:
+            continue  # ligne vide ou bandeau de titre
+        intitule = str(row[0]).strip()
+        if not intitule:
+            continue
+        description = str(row[1]).strip() if len(row) > 1 and row[1] else ''
+        fournisseur = str(row[2]).strip() if len(row) > 2 and row[2] else ''
+        qte_raw = row[3] if len(row) > 3 else None
+        try:
+            quantite = int(qte_raw) if qte_raw not in (None, '') else 1
+        except (ValueError, TypeError):
+            quantite = 1
+        data.append(dict(intitule=intitule, description=description,
+                          fournisseur=fournisseur, quantite=quantite))
+    return data
+
+@app.route('/materiel/import', methods=['GET', 'POST'])
+@login_required
+def materiel_import():
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    if request.method == 'POST':
+        file = request.files.get('file')
+        if not file or not file.filename:
+            flash('Aucun fichier sélectionné.', 'danger')
+            return redirect(request.url)
+        try:
+            rows = parse_materiel_file(file)
+            if not rows:
+                flash('Aucune ligne de matériel détectée dans ce fichier.', 'warning')
+                return redirect(request.url)
+
+            conn = get_db()
+            existing = {r['intitule'].strip().lower() for r in conn.execute('SELECT intitule FROM materiel').fetchall()}
+            conn.close()
+            for r in rows:
+                r['doublon'] = r['intitule'].strip().lower() in existing
+
+            tmp_path = os.path.join(TMP_DIR, f'materiel_{uuid.uuid4().hex}.json')
+            with open(tmp_path, 'w', encoding='utf-8') as fp:
+                json.dump(rows, fp, ensure_ascii=False)
+
+            nb_doublons = sum(1 for r in rows if r['doublon'])
+            return render_template('materiel_import_preview.html', rows=rows, total=len(rows),
+                                   nb_doublons=nb_doublons, tmp_file=os.path.basename(tmp_path))
+        except Exception as e:
+            flash(f'Erreur de lecture : {e}', 'danger')
+    return render_template('materiel_import.html')
+
+@app.route('/materiel/import/confirm', methods=['POST'])
+@login_required
+def materiel_import_confirm():
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    tmp_name = request.form.get('tmp_file', '')
+    tmp_path = os.path.join(TMP_DIR, tmp_name)
+    if not tmp_name or not os.path.exists(tmp_path):
+        flash('Session expirée. Veuillez relancer l\'import.', 'danger')
+        return redirect(url_for('materiel_import'))
+    with open(tmp_path, encoding='utf-8') as fp:
+        rows = json.load(fp)
+    os.unlink(tmp_path)
+
+    skip_doublons = request.form.get('skip_doublons') == '1'
+    conn = get_db()
+    ok, skip = 0, 0
+    for r in rows:
+        if r.get('doublon') and skip_doublons:
+            skip += 1
+            continue
+        conn.execute('''INSERT INTO materiel (intitule, description, fournisseur, quantite, updated_at)
+            VALUES (?,?,?,?,datetime('now'))''',
+            (r['intitule'], r['description'], r['fournisseur'], r['quantite']))
+        ok += 1
+    conn.commit(); conn.close()
+    flash(f'✅ Import terminé — {ok} article(s) créé(s), {skip} ignoré(s).', 'success' if ok else 'warning')
+    return redirect(url_for('materiel_list'))
 
 # ── RUN ───────────────────────────────────────────────────────────────────────
 init_db()
