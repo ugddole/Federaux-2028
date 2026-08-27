@@ -1520,6 +1520,127 @@ def benevoles_export():
                       download_name=f'benevoles_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
                       mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+# ── IMPORT BÉNÉVOLES ──────────────────────────────────────────────────────────
+DROIT_LABELS_BENEVOLES = {
+    'participants': 'Participants', 'competition': 'Compétition', 'communication': 'Communication',
+    'organisation': 'Organisation', 'administration': 'Administration', 'juges': 'Juges',
+}
+_DROIT_LABEL_TO_KEY = {v.lower(): k for k, v in DROIT_LABELS_BENEVOLES.items()}
+
+def _parse_droits_txt(txt):
+    if not txt:
+        return ''
+    keys = []
+    for part in re.split(r'[,;/]', str(txt)):
+        part = part.strip().lower()
+        if not part:
+            continue
+        if part in DROITS_DISPONIBLES:
+            keys.append(part)
+        elif part in _DROIT_LABEL_TO_KEY:
+            keys.append(_DROIT_LABEL_TO_KEY[part])
+    return ','.join(dict.fromkeys(keys))  # dédoublonne en gardant l'ordre
+
+def parse_benevoles_file(file_storage):
+    import openpyxl
+    wb = openpyxl.load_workbook(file_storage, data_only=True)
+    ws = None
+    for s in wb.worksheets:
+        if 'benevol' in _normalize(s.title):
+            ws = s
+            break
+    if ws is None:
+        ws = wb.worksheets[0]
+    rows = list(ws.iter_rows(values_only=True))
+
+    data = []
+    for row in rows[2:]:
+        if not row or not row[0]:
+            continue  # ligne vide ou bandeau de titre
+        nom = str(row[0]).strip()
+        prenom = str(row[1]).strip() if len(row) > 1 and row[1] else ''
+        email = str(row[2]).strip().lower() if len(row) > 2 and row[2] else ''
+        if not nom or not email:
+            continue
+        telephone = str(row[3]).strip() if len(row) > 3 and row[3] else ''
+        tshirt = str(row[4]).strip() if len(row) > 4 and row[4] else 'M'
+        droits_txt = str(row[5]).strip() if len(row) > 5 and row[5] else ''
+        data.append(dict(nom=nom, prenom=prenom, email=email, telephone=telephone,
+                          tshirt=tshirt, droits=_parse_droits_txt(droits_txt)))
+    return data
+
+@app.route('/benevoles/import', methods=['GET', 'POST'])
+@login_required
+def benevoles_import():
+    if not (current_user.is_admin or current_user.has_droit('organisation')): abort(403)
+    if request.method == 'POST':
+        file = request.files.get('file')
+        if not file or not file.filename:
+            flash('Aucun fichier sélectionné.', 'danger')
+            return redirect(request.url)
+        try:
+            rows = parse_benevoles_file(file)
+            if not rows:
+                flash('Aucune ligne de bénévole détectée dans ce fichier.', 'warning')
+                return redirect(request.url)
+
+            conn = get_db()
+            existing = {u['email'].lower() for u in conn.execute('SELECT email FROM users').fetchall()}
+            conn.close()
+            for r in rows:
+                r['doublon'] = r['email'] in existing
+
+            tmp_path = os.path.join(TMP_DIR, f'benevoles_{uuid.uuid4().hex}.json')
+            with open(tmp_path, 'w', encoding='utf-8') as fp:
+                json.dump(rows, fp, ensure_ascii=False)
+
+            nb_doublons = sum(1 for r in rows if r['doublon'])
+            return render_template('benevoles_import_preview.html', rows=rows, total=len(rows),
+                                   nb_doublons=nb_doublons, tmp_file=os.path.basename(tmp_path),
+                                   droit_labels=DROIT_LABELS_BENEVOLES)
+        except Exception as e:
+            flash(f'Erreur de lecture : {e}', 'danger')
+    return render_template('benevoles_import.html')
+
+@app.route('/benevoles/import/confirm', methods=['POST'])
+@login_required
+def benevoles_import_confirm():
+    if not (current_user.is_admin or current_user.has_droit('organisation')): abort(403)
+    tmp_name = request.form.get('tmp_file', '')
+    tmp_path = os.path.join(TMP_DIR, tmp_name)
+    if not tmp_name or not os.path.exists(tmp_path):
+        flash('Session expirée. Veuillez relancer l\'import.', 'danger')
+        return redirect(url_for('benevoles_import'))
+    with open(tmp_path, encoding='utf-8') as fp:
+        rows = json.load(fp)
+    os.unlink(tmp_path)
+
+    skip_doublons = request.form.get('skip_doublons') == '1'
+    conn = get_db()
+    ok, skip = 0, 0
+    for r in rows:
+        if r.get('doublon') and skip_doublons:
+            skip += 1
+            continue
+        password = uuid.uuid4().hex[:10]
+        try:
+            conn.execute('''INSERT INTO users (email,password_hash,nom,prenom,role,droits,must_change_password)
+                VALUES (?,?,?,?,?,?,1)''',
+                (r['email'], generate_password_hash(password), r['nom'], r['prenom'], 'benevole', r['droits']))
+            uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            token = str(uuid.uuid4())
+            conn.execute('INSERT INTO benevoles (user_id,telephone,tshirt,qr_token) VALUES (?,?,?,?)',
+                (uid, r['telephone'], r['tshirt'] or 'M', token))
+            conn.commit()
+            send_welcome_email(r['email'], r['prenom'], r['nom'], password, url_for('login', _external=True))
+            ok += 1
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            skip += 1
+    conn.close()
+    flash(f'✅ Import terminé — {ok} bénévole(s) créé(s), {skip} ignoré(s).', 'success' if ok else 'warning')
+    return redirect(url_for('benevoles_list'))
+
 @app.route('/benevoles/<int:id>/badge')
 @login_required
 def benevole_badge(id):
