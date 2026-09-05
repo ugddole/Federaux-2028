@@ -312,6 +312,18 @@ def init_db():
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            societe TEXT DEFAULT '',
+            nom TEXT NOT NULL,
+            prenom TEXT DEFAULT '',
+            fonction TEXT DEFAULT '',
+            telephone TEXT DEFAULT '',
+            email TEXT DEFAULT '',
+            description TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
     ''')
     conn.commit()
     conn.close()
@@ -329,6 +341,7 @@ DEFAULT_DROITS_CONFIG = {
     ('page', 'scanner'): {'competition', 'organisation', 'juges', 'staff'},
     ('page', 'taches'): {'organisation', 'communication', 'staff'},
     ('page', 'materiel'): {'organisation', 'communication', 'staff'},
+    ('page', 'contacts'): {'organisation', 'communication', 'administration', 'staff'},
     ('page', 'budget'): {'organisation', 'staff'},
     ('forum_cat', 'Bénévoles'): {'organisation', 'communication', 'staff'},
     ('forum_cat', 'Technique & Matériel'): {'organisation', 'communication', 'staff'},
@@ -531,6 +544,11 @@ def require_droit(droit):
         return wrapped
     return decorator
 
+def peut_gerer_contacts():
+    """Lecture/écriture sur les Contacts : communication, organisation, administration, ou staff."""
+    return (current_user.is_staff or current_user.has_droit('organisation')
+            or current_user.has_droit('communication') or current_user.has_droit('administration'))
+
 PAGE_DEFS = {
     'participants': {'url': 'participants_list', 'icon': 'bi-people-fill', 'label': 'Participants'},
     'juges': {'url': 'juges_list', 'icon': 'bi-award-fill', 'label': 'Juges'},
@@ -541,6 +559,7 @@ PAGE_DEFS = {
     'scanner': {'url': 'scanner', 'icon': 'bi-qr-code-scan', 'label': 'Scanner'},
     'taches': {'url': 'taches_list', 'icon': 'bi-check2-square', 'label': 'Tâches'},
     'materiel': {'url': 'materiel_list', 'icon': 'bi-box-seam-fill', 'label': 'Matériel'},
+    'contacts': {'url': 'contacts_list', 'icon': 'bi-person-lines-fill', 'label': 'Contacts'},
     'budget': {'url': 'budget_list', 'icon': 'bi-cash-coin', 'label': 'Budget'},
 }
 # 'administration' et 'droits_recap' restent volontairement hors matrice éditable
@@ -3416,6 +3435,203 @@ def materiel_import_confirm():
     conn.commit(); conn.close()
     flash(f'✅ Import terminé — {ok} article(s) créé(s), {skip} ignoré(s).', 'success' if ok else 'warning')
     return redirect(url_for('materiel_list'))
+
+# ── CONTACTS ──────────────────────────────────────────────────────────────────
+@app.route('/contacts')
+@login_required
+def contacts_list():
+    if not est_autorise('page', 'contacts', current_user): abort(403)
+    q = (request.args.get('q') or '').strip()
+    conn = get_db()
+    if q:
+        like = f'%{q}%'
+        items = conn.execute('''SELECT * FROM contacts
+            WHERE societe LIKE ? OR nom LIKE ? OR prenom LIKE ? OR fonction LIKE ? OR email LIKE ?
+            ORDER BY societe, nom''', (like, like, like, like, like)).fetchall()
+    else:
+        items = conn.execute('SELECT * FROM contacts ORDER BY societe, nom').fetchall()
+    conn.close()
+    return render_template('contacts_list.html', items=items, q=q)
+
+@app.route('/contacts/new', methods=['GET', 'POST'])
+@login_required
+def contact_new():
+    if not peut_gerer_contacts(): abort(403)
+    if request.method == 'POST':
+        f = request.form
+        nom = f.get('nom', '').strip()
+        if not nom:
+            flash('Le nom est obligatoire.', 'danger')
+            return render_template('contact_form.html', action='new', item=None)
+        conn = get_db()
+        conn.execute('''INSERT INTO contacts (societe, nom, prenom, fonction, telephone, email, description, updated_at)
+            VALUES (?,?,?,?,?,?,?,datetime('now'))''',
+            (f.get('societe', '').strip(), nom, f.get('prenom', '').strip(),
+             f.get('fonction', '').strip(), f.get('telephone', '').strip(),
+             f.get('email', '').strip(), f.get('description', '').strip()))
+        conn.commit(); conn.close()
+        flash('Contact ajouté.', 'success')
+        return redirect(url_for('contacts_list'))
+    return render_template('contact_form.html', action='new', item=None)
+
+@app.route('/contacts/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def contact_edit(id):
+    if not peut_gerer_contacts(): abort(403)
+    conn = get_db()
+    item = conn.execute('SELECT * FROM contacts WHERE id=?', (id,)).fetchone()
+    if not item: conn.close(); abort(404)
+    if request.method == 'POST':
+        f = request.form
+        nom = f.get('nom', '').strip()
+        if not nom:
+            conn.close()
+            flash('Le nom est obligatoire.', 'danger')
+            return render_template('contact_form.html', action='edit', item=item)
+        conn.execute('''UPDATE contacts SET societe=?, nom=?, prenom=?, fonction=?, telephone=?, email=?,
+            description=?, updated_at=datetime('now') WHERE id=?''',
+            (f.get('societe', '').strip(), nom, f.get('prenom', '').strip(),
+             f.get('fonction', '').strip(), f.get('telephone', '').strip(),
+             f.get('email', '').strip(), f.get('description', '').strip(), id))
+        conn.commit(); conn.close()
+        flash('Contact mis à jour.', 'success')
+        return redirect(url_for('contacts_list'))
+    conn.close()
+    return render_template('contact_form.html', action='edit', item=item)
+
+@app.route('/contacts/<int:id>/delete', methods=['POST'])
+@login_required
+def contact_delete(id):
+    if not peut_gerer_contacts(): abort(403)
+    conn = get_db()
+    conn.execute('DELETE FROM contacts WHERE id=?', (id,))
+    conn.commit(); conn.close()
+    flash('Contact supprimé.', 'success')
+    return redirect(url_for('contacts_list'))
+
+@app.route('/contacts/export')
+@login_required
+def contacts_export():
+    if not peut_gerer_contacts(): abort(403)
+    conn = get_db()
+    items = conn.execute('SELECT * FROM contacts ORDER BY societe, nom').fetchall()
+    conn.close()
+
+    headers = ['Société', 'Nom', 'Prénom', 'Fonction', 'Téléphone', 'Email', 'Description']
+    rows = []
+    for c in items:
+        rows.append({
+            'societe': c['societe'] or '',
+            'nom': c['nom'],
+            'prenom': c['prenom'] or '',
+            'fonction': c['fonction'] or '',
+            'telephone': c['telephone'] or '',
+            'email': c['email'] or '',
+            'description': c['description'] or '',
+        })
+
+    wb = build_export_workbook(
+        export_name="Contacts",
+        headers=headers,
+        rows=rows,
+    )
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                      download_name=f'contacts_dole2028_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+def parse_contacts_file(file_storage):
+    import openpyxl
+    wb = openpyxl.load_workbook(file_storage, data_only=True)
+    ws = None
+    for s in wb.worksheets:
+        if 'contact' in _normalize(s.title):
+            ws = s
+            break
+    if ws is None:
+        ws = wb.worksheets[0]
+    rows = list(ws.iter_rows(values_only=True))
+
+    data = []
+    for row in rows[2:]:
+        if not row or not row[1]:
+            continue  # ligne vide ou bandeau de titre (colonne Nom = index 1)
+        societe = str(row[0]).strip() if len(row) > 0 and row[0] else ''
+        nom = str(row[1]).strip() if row[1] else ''
+        if not nom:
+            continue
+        prenom = str(row[2]).strip() if len(row) > 2 and row[2] else ''
+        fonction = str(row[3]).strip() if len(row) > 3 and row[3] else ''
+        telephone = str(row[4]).strip() if len(row) > 4 and row[4] else ''
+        email = str(row[5]).strip() if len(row) > 5 and row[5] else ''
+        description = str(row[6]).strip() if len(row) > 6 and row[6] else ''
+        data.append(dict(societe=societe, nom=nom, prenom=prenom, fonction=fonction,
+                          telephone=telephone, email=email, description=description))
+    return data
+
+@app.route('/contacts/import', methods=['GET', 'POST'])
+@login_required
+def contacts_import():
+    if not peut_gerer_contacts(): abort(403)
+    if request.method == 'POST':
+        file = request.files.get('file')
+        if not file or not file.filename:
+            flash('Aucun fichier sélectionné.', 'danger')
+            return redirect(request.url)
+        try:
+            rows = parse_contacts_file(file)
+            if not rows:
+                flash('Aucune ligne de contact détectée dans ce fichier.', 'warning')
+                return redirect(request.url)
+
+            conn = get_db()
+            existing = {(r['nom'].strip().lower(), (r['societe'] or '').strip().lower())
+                        for r in conn.execute('SELECT nom, societe FROM contacts').fetchall()}
+            conn.close()
+            for r in rows:
+                r['doublon'] = (r['nom'].strip().lower(), r['societe'].strip().lower()) in existing
+
+            tmp_path = os.path.join(TMP_DIR, f'contacts_{uuid.uuid4().hex}.json')
+            with open(tmp_path, 'w', encoding='utf-8') as fp:
+                json.dump(rows, fp, ensure_ascii=False)
+
+            nb_doublons = sum(1 for r in rows if r['doublon'])
+            return render_template('contacts_import_preview.html', rows=rows, total=len(rows),
+                                   nb_doublons=nb_doublons, tmp_file=os.path.basename(tmp_path))
+        except Exception as e:
+            flash(f'Erreur de lecture : {e}', 'danger')
+    return render_template('contacts_import.html')
+
+@app.route('/contacts/import/confirm', methods=['POST'])
+@login_required
+def contacts_import_confirm():
+    if not peut_gerer_contacts(): abort(403)
+    tmp_name = request.form.get('tmp_file', '')
+    tmp_path = os.path.join(TMP_DIR, tmp_name)
+    if not tmp_name or not os.path.exists(tmp_path):
+        flash('Session expirée. Veuillez relancer l\'import.', 'danger')
+        return redirect(url_for('contacts_import'))
+    with open(tmp_path, encoding='utf-8') as fp:
+        rows = json.load(fp)
+    os.unlink(tmp_path)
+
+    skip_doublons = request.form.get('skip_doublons') == '1'
+    conn = get_db()
+    ok, skip = 0, 0
+    for r in rows:
+        if r.get('doublon') and skip_doublons:
+            skip += 1
+            continue
+        conn.execute('''INSERT INTO contacts (societe, nom, prenom, fonction, telephone, email, description, updated_at)
+            VALUES (?,?,?,?,?,?,?,datetime('now'))''',
+            (r['societe'], r['nom'], r['prenom'], r['fonction'], r['telephone'], r['email'], r['description']))
+        ok += 1
+    conn.commit(); conn.close()
+    flash(f'✅ Import terminé — {ok} contact(s) créé(s), {skip} ignoré(s).', 'success' if ok else 'warning')
+    return redirect(url_for('contacts_list'))
 
 # ── RUN ───────────────────────────────────────────────────────────────────────
 init_db()
