@@ -143,6 +143,11 @@
           <i class="bi bi-box-seam-fill me-2"></i>Nouveau matériel
         </a>
         {% endif %}
+        {% if current_user.is_staff or current_user.has_droit('organisation') or current_user.has_droit('communication') or current_user.has_droit('administration') %}
+        <a href="{{ url_for('contact_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#E2007A;color:#E2007A;">
+          <i class="bi bi-person-lines-fill me-2"></i>Nouveau contact
+        </a>
+        {% endif %}
       </div>
     </div>
   </div>

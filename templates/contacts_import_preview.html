@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Prévisualisation import{% endblock %}
+{% block page_title %}<i class="bi bi-eye-fill me-2"></i>Prévisualisation de l'import{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('contacts_list') }}" class="btn-fscf-outline"><i class="bi bi-arrow-left me-1"></i>Annuler</a>
+{% endblock %}
+
+{% block content %}
+<div class="fscf-card mb-3">
+  <div class="fscf-card-body">
+    <p class="mb-0">
+      <strong>{{ total }}</strong> ligne(s) détectée(s), dont
+      <strong>{{ nb_doublons }}</strong> doublon(s) potentiel(s) (même nom + même société déjà en base).
+    </p>
+  </div>
+</div>
+
+<div class="fscf-card mb-3">
+  <div class="fscf-card-body p-0">
+    <table class="fscf-table">
+      <thead>
+        <tr>
+          <th>Société</th><th>Nom</th><th>Prénom</th><th>Fonction</th>
+          <th>Téléphone</th><th>Email</th><th>Description</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr style="{{ 'background:#fff8e1;' if r.doublon else '' }}">
+          <td>{{ r.societe }}</td>
+          <td><strong>{{ r.nom }}</strong></td>
+          <td>{{ r.prenom }}</td>
+          <td>{{ r.fonction }}</td>
+          <td>{{ r.telephone }}</td>
+          <td>{{ r.email }}</td>
+          <td style="font-size:12px;color:#666;">{{ r.description }}</td>
+          <td>{% if r.doublon %}<span class="badge bg-warning text-dark">doublon ?</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<form method="POST" action="{{ url_for('contacts_import_confirm') }}">
+  <input type="hidden" name="tmp_file" value="{{ tmp_file }}">
+  {% if nb_doublons %}
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="skip_doublons" value="1" id="skipDoublons" checked>
+    <label class="form-check-label" for="skipDoublons">
+      Ignorer les doublons potentiels ({{ nb_doublons }})
+    </label>
+  </div>
+  {% endif %}
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn-fscf px-4 py-2"><i class="bi bi-check-lg me-1"></i>Confirmer l'import</button>
+    <a href="{{ url_for('contacts_list') }}" class="btn btn-outline-secondary px-4 py-2">Annuler</a>
+  </div>
+</form>
+{% endblock %}
