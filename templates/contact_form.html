@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Modifier le contact' if action == 'edit' else 'Nouveau contact' }}{% endblock %}
+{% block page_title %}
+<i class="bi bi-person-lines-fill me-2"></i>{{ 'Modifier le contact' if action == 'edit' else 'Nouveau contact' }}
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-6 col-md-8">
+<div class="fscf-card">
+<div class="fscf-card-body">
+     <form method="POST">
+
+      <div class="mb-3">
+        <label class="form-label fw-bold">Société</label>
+        <input type="text" name="societe" class="form-control" maxlength="150"
+               value="{{ item.societe if item else '' }}" placeholder="Ex : Mairie de Dole">
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          <label class="form-label fw-bold">Nom <span class="text-danger">*</span></label>
+          <input type="text" name="nom" class="form-control" required maxlength="100"
+                 value="{{ item.nom if item else '' }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-bold">Prénom</label>
+          <input type="text" name="prenom" class="form-control" maxlength="100"
+                 value="{{ item.prenom if item else '' }}">
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-bold">Fonction</label>
+        <input type="text" name="fonction" class="form-control" maxlength="150"
+               value="{{ item.fonction if item else '' }}" placeholder="Ex : Responsable technique">
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          <label class="form-label fw-bold">Téléphone</label>
+          <input type="tel" name="telephone" class="form-control"
+                 value="{{ item.telephone if item else '' }}">
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-bold">Email</label>
+          <input type="email" name="email" class="form-control"
+                 value="{{ item.email if item else '' }}">
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label fw-bold">Description</label>
+        <textarea name="description" class="form-control" rows="3"
+                  placeholder="Notes, contexte (optionnel)…">{{ item.description if item else '' }}</textarea>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn-fscf px-4 py-2">
+          <i class="bi bi-check-lg me-1"></i>{{ 'Mettre à jour' if action == 'edit' else 'Ajouter' }}
+        </button>
+        <a href="{{ url_for('contacts_list') }}" class="btn btn-outline-secondary px-4 py-2">Annuler</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+</div>
+</div>
+{% endblock %}
