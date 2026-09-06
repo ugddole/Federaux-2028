@@ -1736,6 +1736,21 @@ def benevole_edit(id):
     conn.close()
     return render_template('benevole_form.html', action='edit', item=b)
 
+@app.route('/benevoles/<int:id>/delete', methods=['POST'])
+@login_required
+def benevole_delete(id):
+    if not current_user.is_admin: return jsonify(error='Non autorisé'), 403
+    conn = get_db()
+    b = conn.execute('SELECT user_id FROM benevoles WHERE id=?', (id,)).fetchone()
+    if b:
+        conn.execute('DELETE FROM affectations WHERE benevole_id=?', (id,))
+        conn.execute('DELETE FROM access_logs WHERE benevole_id=?', (id,))
+        conn.execute('DELETE FROM benevoles WHERE id=?', (id,))
+        conn.execute('DELETE FROM users WHERE id=?', (b['user_id'],))
+        conn.commit()
+    conn.close()
+    return jsonify(success=True)
+
 def _mission_item(conn, m):
     aff = conn.execute('''
         SELECT b.id,u.nom,u.prenom FROM affectations a
