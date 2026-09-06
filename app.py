@@ -309,6 +309,7 @@ def init_db():
             description TEXT DEFAULT '',
             fournisseur TEXT DEFAULT '',
             quantite INTEGER DEFAULT 1,
+            statut TEXT DEFAULT 'a_faire',
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
@@ -460,6 +461,11 @@ def migrate_db():
         pass
     try:
         c.execute("ALTER TABLE participants ADD COLUMN telephone TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE materiel ADD COLUMN statut TEXT DEFAULT 'a_faire'")
         conn.commit()
     except Exception:
         pass
@@ -3252,6 +3258,9 @@ def planning_export():
                       mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ── MATÉRIEL ──────────────────────────────────────────────────────────────────
+MATERIEL_STATUTS = {'a_faire': 'À faire', 'en_cours': 'En cours', 'fait': 'Fait'}
+app.jinja_env.globals['MATERIEL_STATUTS'] = MATERIEL_STATUTS
+
 @app.route('/materiel')
 @login_required
 def materiel_list():
@@ -3271,11 +3280,12 @@ def materiel_new():
         if not intitule:
             flash('L\'intitulé est obligatoire.', 'danger')
             return render_template('materiel_form.html', action='new', item=None)
+        statut = f.get('statut') if f.get('statut') in MATERIEL_STATUTS else 'a_faire'
         conn = get_db()
-        conn.execute('''INSERT INTO materiel (intitule, description, fournisseur, quantite, updated_at)
-            VALUES (?,?,?,?,datetime('now'))''',
+        conn.execute('''INSERT INTO materiel (intitule, description, fournisseur, quantite, statut, updated_at)
+            VALUES (?,?,?,?,?,datetime('now'))''',
             (intitule, f.get('description', '').strip(), f.get('fournisseur', '').strip(),
-             int(f.get('quantite') or 1)))
+             int(f.get('quantite') or 1), statut))
         conn.commit(); conn.close()
         flash('Matériel ajouté.', 'success')
         return redirect(url_for('materiel_list'))
@@ -3295,10 +3305,11 @@ def materiel_edit(id):
             conn.close()
             flash('L\'intitulé est obligatoire.', 'danger')
             return render_template('materiel_form.html', action='edit', item=item)
-        conn.execute('''UPDATE materiel SET intitule=?, description=?, fournisseur=?, quantite=?, updated_at=datetime('now')
+        statut = f.get('statut') if f.get('statut') in MATERIEL_STATUTS else 'a_faire'
+        conn.execute('''UPDATE materiel SET intitule=?, description=?, fournisseur=?, quantite=?, statut=?, updated_at=datetime('now')
             WHERE id=?''',
             (intitule, f.get('description', '').strip(), f.get('fournisseur', '').strip(),
-             int(f.get('quantite') or 1), id))
+             int(f.get('quantite') or 1), statut, id))
         conn.commit(); conn.close()
         flash('Matériel mis à jour.', 'success')
         return redirect(url_for('materiel_list'))
@@ -3315,6 +3326,17 @@ def materiel_delete(id):
     flash('Matériel supprimé.', 'success')
     return redirect(url_for('materiel_list'))
 
+@app.route('/materiel/<int:id>/statut', methods=['POST'])
+@login_required
+def materiel_statut(id):
+    if not (current_user.is_staff or current_user.has_droit('organisation')): abort(403)
+    statut = request.form.get('statut')
+    if statut not in MATERIEL_STATUTS: abort(400)
+    conn = get_db()
+    conn.execute("UPDATE materiel SET statut=?, updated_at=datetime('now') WHERE id=?", (statut, id))
+    conn.commit(); conn.close()
+    return redirect(url_for('materiel_list'))
+
 @app.route('/materiel/export')
 @login_required
 def materiel_export():
@@ -3323,7 +3345,7 @@ def materiel_export():
     items = conn.execute('SELECT * FROM materiel ORDER BY intitule').fetchall()
     conn.close()
 
-    headers = ['Intitulé', 'Description', 'Fournisseur', 'Quantité']
+    headers = ['Intitulé', 'Description', 'Fournisseur', 'Quantité', 'Statut']
     rows = []
     for m in items:
         rows.append({
@@ -3331,6 +3353,7 @@ def materiel_export():
             'description': m['description'] or '',
             'fournisseur': m['fournisseur'] or '',
             'quantite': m['quantite'],
+            'statut': MATERIEL_STATUTS.get(m['statut'], m['statut'] or ''),
         })
 
     wb = build_export_workbook(
