@@ -37,6 +37,7 @@
           <th>Description</th>
           <th>Fournisseur</th>
           <th>Quantité</th>
+          <th style="width:150px;">Statut</th>
           {% if can_manage %}<th style="width:110px;">Actions</th>{% endif %}
         </tr>
       </thead>
@@ -47,6 +48,27 @@
           <td style="font-size:12px;color:#666;">{{ m.description or '—' }}</td>
           <td style="font-size:12px;">{{ m.fournisseur or '—' }}</td>
           <td><span class="badge bg-light text-dark border">{{ m.quantite }}</span></td>
+          <td>
+            {% set statut_courant = m.statut or 'a_faire' %}
+            {% set statut_couleurs = {'a_faire': '#6c757d', 'en_cours': '#e6a100', 'fait': '#009944'} %}
+            {% if can_manage %}
+            <form method="POST" action="{{ url_for('materiel_statut', id=m.id) }}" class="d-inline">
+              <select name="statut" onchange="this.form.submit()" class="form-select form-select-sm"
+                      style="width:auto;display:inline-block;font-size:11px;font-weight:700;
+                             color:#fff;background-color:{{ statut_couleurs.get(statut_courant, '#6c757d') }};
+                             border:none;border-radius:20px;padding:3px 10px;">
+                {% for cle, libelle in MATERIEL_STATUTS.items() %}
+                <option value="{{ cle }}" {% if cle == statut_courant %}selected{% endif %}
+                        style="color:#000;background:#fff;">{{ libelle }}</option>
+                {% endfor %}
+              </select>
+            </form>
+            {% else %}
+            <span class="badge" style="background:{{ statut_couleurs.get(statut_courant, '#6c757d') }};color:#fff;">
+              {{ MATERIEL_STATUTS.get(statut_courant, statut_courant) }}
+            </span>
+            {% endif %}
+          </td>
           {% if can_manage %}
           <td>
             <div class="d-flex gap-1">
