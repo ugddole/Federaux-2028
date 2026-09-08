@@ -5,9 +5,25 @@
 {% endblock %}
 
 {% block content %}
+<style>
+  /* Empêche le zoom automatique iOS sur les inputs (taille < 16px) */
+  .contact-form-card input,
+  .contact-form-card textarea {
+    font-size: 16px;
+  }
+  @media (max-width: 575.98px) {
+    .contact-form-card .btn-fscf,
+    .contact-form-card .btn-outline-secondary {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+    }
+  }
+</style>
+
 <div class="row justify-content-center">
 <div class="col-lg-6 col-md-8">
-<div class="fscf-card">
+<div class="fscf-card contact-form-card">
 <div class="fscf-card-body">
      <form method="POST">
 
@@ -18,12 +34,12 @@
       </div>
 
       <div class="row g-3 mb-3">
-        <div class="col-6">
+        <div class="col-12 col-sm-6">
           <label class="form-label fw-bold">Nom <span class="text-danger">*</span></label>
           <input type="text" name="nom" class="form-control" required maxlength="100"
                  value="{{ item.nom if item else '' }}">
         </div>
-        <div class="col-6">
+        <div class="col-12 col-sm-6">
           <label class="form-label fw-bold">Prénom</label>
           <input type="text" name="prenom" class="form-control" maxlength="100"
                  value="{{ item.prenom if item else '' }}">
@@ -37,12 +53,12 @@
       </div>
 
       <div class="row g-3 mb-3">
-        <div class="col-6">
+        <div class="col-12 col-sm-6">
           <label class="form-label fw-bold">Téléphone</label>
           <input type="tel" name="telephone" class="form-control"
                  value="{{ item.telephone if item else '' }}">
         </div>
-        <div class="col-6">
+        <div class="col-12 col-sm-6">
           <label class="form-label fw-bold">Email</label>
           <input type="email" name="email" class="form-control"
                  value="{{ item.email if item else '' }}">
@@ -55,7 +71,7 @@
                   placeholder="Notes, contexte (optionnel)…">{{ item.description if item else '' }}</textarea>
       </div>
 
-      <div class="d-flex gap-2">
+      <div class="d-flex flex-column flex-sm-row gap-2">
         <button type="submit" class="btn-fscf px-4 py-2">
           <i class="bi bi-check-lg me-1"></i>{{ 'Mettre à jour' if action == 'edit' else 'Ajouter' }}
         </button>

@@ -8,21 +8,101 @@
 {% endblock %}
 
 {% block content %}
+<style>
+  /* --- Optimisations mobile page Contacts --- */
+  @media (max-width: 767.98px) {
+    .topbar-actions a {
+      flex: 1 1 auto;
+      text-align: center;
+      padding: 10px 8px;
+      font-size: 14px;
+    }
+    .topbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      width: 100%;
+    }
+  }
+
+  .contacts-cards { display: none; }
+  @media (max-width: 767.98px) {
+    .contacts-table-wrap { display: none; }
+    .contacts-cards { display: block; }
+  }
+
+  .contact-card {
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 10px;
+    background: #fff;
+  }
+  .contact-card + .contact-card { margin-top: 10px; }
+  .contact-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .contact-card-name { font-weight: 700; font-size: 16px; }
+  .contact-card-societe { font-size: 13px; color: #7a1f3d; font-weight: 600; }
+  .contact-card-fonction { font-size: 13px; color: #666; margin-top: 2px; }
+  .contact-card-desc {
+    font-size: 12px; color: #777; margin-top: 8px;
+    white-space: pre-wrap;
+  }
+  .contact-card-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .contact-card-actions .btn {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 16px;
+  }
+  .contact-card-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .contact-card-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 20px;
+    background: #f5f0f2;
+    color: #7a1f3d;
+    font-size: 13px;
+    text-decoration: none;
+    min-height: 38px;
+  }
+</style>
+
 <div class="fscf-card mb-3">
   <div class="fscf-card-body">
     <form method="get" class="row g-2 align-items-center">
-      <div class="col-md-4">
+      <div class="col-12 col-md-4">
         <input type="text" name="q" value="{{ q }}" class="form-control"
-               placeholder="Rechercher (société, nom, email...)">
+               placeholder="Rechercher (société, nom, email...)"
+               style="font-size:16px;">
       </div>
-      <div class="col-md-2">
+      <div class="col-12 col-md-2">
         <button class="btn-fscf-outline w-100" type="submit"><i class="bi bi-search"></i> Rechercher</button>
       </div>
     </form>
   </div>
 </div>
 
-<div class="fscf-card">
+<!-- Vue tableau : desktop / tablette -->
+<div class="fscf-card contacts-table-wrap">
   <div class="fscf-card-body p-0">
     <table class="fscf-table">
       <thead>
@@ -63,5 +143,42 @@
       </tbody>
     </table>
   </div>
+</div>
+
+<!-- Vue cartes : mobile -->
+<div class="contacts-cards">
+  {% for c in items %}
+  <div class="contact-card">
+    <div class="contact-card-top">
+      <div>
+        <div class="contact-card-name">{{ c.prenom }} {{ c.nom }}</div>
+        {% if c.societe %}<div class="contact-card-societe">{{ c.societe }}</div>{% endif %}
+        {% if c.fonction %}<div class="contact-card-fonction">{{ c.fonction }}</div>{% endif %}
+      </div>
+      <div class="contact-card-actions">
+        <a href="{{ url_for('contact_edit', id=c.id) }}" class="btn btn-outline-secondary">
+          <i class="bi bi-pencil"></i>
+        </a>
+        <form method="POST" action="{{ url_for('contact_delete', id=c.id) }}"
+              onsubmit="return confirm('Supprimer ce contact ?');">
+          <button class="btn btn-outline-danger" type="submit"><i class="bi bi-trash"></i></button>
+        </form>
+      </div>
+    </div>
+
+    {% if c.telephone or c.email %}
+    <div class="contact-card-links">
+      {% if c.telephone %}<a href="tel:{{ c.telephone }}"><i class="bi bi-telephone-fill"></i>{{ c.telephone }}</a>{% endif %}
+      {% if c.email %}<a href="mailto:{{ c.email }}"><i class="bi bi-envelope-fill"></i>{{ c.email }}</a>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if c.description %}
+    <div class="contact-card-desc">{{ c.description }}</div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="text-center text-muted py-4">Aucun contact.</div>
+  {% endfor %}
 </div>
 {% endblock %}
