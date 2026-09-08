@@ -14,7 +14,7 @@
       <div class="fscf-card-header pink"><i class="bi bi-person-fill me-2"></i>Fiche participant</div>
       <div class="fscf-card-body">
         <table class="w-100" style="font-size:13px;">
-          <tr><td class="text-muted py-1">Dossard</td><td><strong style="color:var(--pink);font-size:16px;">{{ p.numero_dossard }}</strong></td></tr>
+          <tr><td class="text-muted py-1">Licence</td><td><strong style="color:var(--pink);font-size:16px;">{{ p.numero_dossard }}</strong></td></tr>
           <tr><td class="text-muted py-1">Catégorie</td><td><span class="role-badge role-participant">{{ p.categorie }}</span></td></tr>
           <tr><td class="text-muted py-1">Club</td><td><strong>{{ p.club }}</strong></td></tr>
           <tr><td class="text-muted py-1">Région</td><td>{{ p.region or '—' }}</td></tr>
@@ -41,7 +41,8 @@
       <div class="fscf-card-body">
         <div class="qr-container">
           <img src="data:image/png;base64,{{ qr }}" alt="QR Code" class="img-fluid">
-          <div class="mt-2 text-muted" style="font-size:11px;">Token : <code>{{ p.qr_token[:16] }}…</code></div>
+          <div class="mt-2" style="font-size:13px;"><strong style="color:var(--pink);">Licence N° {{ p.numero_dossard }}</strong></div>
+          <div class="mt-1 text-muted" style="font-size:11px;">Token : <code>{{ p.qr_token[:16] }}…</code></div>
         </div>
         <a href="{{ url_for('participant_badge', id=p.id) }}" class="btn-fscf w-100 text-center text-decoration-none d-block mt-3 py-2">
           <i class="bi bi-printer me-2"></i>Télécharger badge PDF

@@ -23,7 +23,7 @@
   <div class="fscf-card-body">
     <form method="GET" class="row g-2 mb-3">
       <div class="col-md-6">
-        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="🔍 Rechercher nom, club, dossard…">
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="🔍 Rechercher nom, club, licence…">
       </div>
       <div class="col-md-3">
         <select name="cat" class="form-select">
@@ -40,7 +40,7 @@
     {% if items %}
     <table class="fscf-table">
       <thead><tr>
-        <th>Dossard</th><th>Nom / Prénom</th><th>Club</th><th>Catégorie</th><th>Badge</th><th>Actions</th>
+        <th>Licence</th><th>Nom / Prénom</th><th>Club</th><th>Catégorie</th><th>Badge</th><th>Actions</th>
       </tr></thead>
       <tbody>
       {% for p in items %}
