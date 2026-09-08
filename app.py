@@ -749,7 +749,8 @@ def generate_badge(p_id):
         ('GALA', bool(p['gala']), (106, 13, 173)),
         ('D.MIDI', bool(p['collation_dimanche_midi']), (0, 153, 68)),
     ]
-    img = _draw_badge_image((226, 0, 122), p['categorie'], p['prenom'], p['nom'], p['club'], p['numero_dossard'], qr_path, options)
+    img = _draw_badge_image((226, 0, 122), p['categorie'], p['prenom'], p['nom'], p['club'], p['numero_dossard'], qr_path, options,
+                             numero_label='Licence N°')
 
     out = os.path.join(BADGES_DIR, f'badge_{p_id}.png')
     img.save(out, 'PNG')
@@ -784,7 +785,8 @@ def generate_badges_participants_all(only_missing=True):
             ('GALA', bool(p['gala']), (106, 13, 173)),
             ('D.MIDI', bool(p['collation_dimanche_midi']), (0, 153, 68)),
         ]
-        img = _draw_badge_image((226, 0, 122), p['categorie'], p['prenom'], p['nom'], p['club'], p['numero_dossard'], qr_path, options)
+        img = _draw_badge_image((226, 0, 122), p['categorie'], p['prenom'], p['nom'], p['club'], p['numero_dossard'], qr_path, options,
+                                 numero_label='Licence N°')
         png_path = os.path.join(BADGES_DIR, f'badge_{p["id"]}.png')
         img.save(png_path, 'PNG')
         fichiers.append((png_path, f"{p['nom']}_{p['prenom']}_{p['numero_dossard']}.png"))
@@ -1137,7 +1139,7 @@ def participant_new():
             pid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.commit(); conn.close()
             send_welcome_email(email, f['prenom'].strip(), f['nom'].strip(), password, url_for('login', _external=True))
-            flash(f'Participant créé — Dossard : {dossard}', 'success')
+            flash(f'Participant créé — Licence : {dossard}', 'success')
             return redirect(url_for('participant_detail', id=pid))
         except sqlite3.IntegrityError as e:
             conn.rollback(); conn.close()
