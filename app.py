@@ -1287,8 +1287,10 @@ def juge_new():
                  f['nom'].strip(), f['prenom'].strip(), 'juge'))
             uid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             token = str(uuid.uuid4())
-            count = conn.execute('SELECT COUNT(*) FROM juges').fetchone()[0]
-            dossard = f.get('dossard','').strip() or f'J{2028}{count+1:04d}'
+            maxnum = conn.execute(
+                "SELECT MAX(CAST(SUBSTR(numero_dossard, 6) AS INTEGER)) FROM juges WHERE numero_dossard LIKE 'J2028%'"
+            ).fetchone()[0] or 0
+            dossard = f.get('dossard','').strip() or f'J{2028}{maxnum+1:04d}'
             conn.execute('''INSERT INTO juges
                 (user_id,club,region,categorie,numero_dossard,qr_token,notes,telephone,
                  repas_samedi_midi,repas_samedi_soir,soiree_juges,collation_dimanche_midi)
