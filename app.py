@@ -2137,23 +2137,19 @@ def forum_resolve(id):
 def scanner():
     if not est_autorise('page', 'scanner', current_user):
         abort(403)
+    return render_template('scanner.html')
+
+@app.route('/scanner/reset', methods=['POST'])
+@login_required
+def scanner_reset():
+    if not current_user.is_admin:
+        abort(403)
     conn = get_db()
-    logs = conn.execute('''
-        SELECT al.*,u.nom,u.prenom,p.categorie,p.numero_dossard,p.club, 'participant' AS type
-        FROM access_logs al JOIN participants p ON al.participant_id=p.id
-        JOIN users u ON p.user_id=u.id
-        UNION ALL
-        SELECT al.*,u.nom,u.prenom,j.categorie,j.numero_dossard,j.club, 'juge' AS type
-        FROM access_logs al JOIN juges j ON al.juge_id=j.id
-        JOIN users u ON j.user_id=u.id
-        UNION ALL
-        SELECT al.*,u.nom,u.prenom,'BÉNÉVOLE' AS categorie,('B2028'||printf('%04d',b.id)) AS numero_dossard,'Bénévole' AS club, 'benevole' AS type
-        FROM access_logs al JOIN benevoles b ON al.benevole_id=b.id
-        JOIN users u ON b.user_id=u.id
-        ORDER BY timestamp DESC LIMIT 20
-    ''').fetchall()
+    conn.execute('DELETE FROM access_logs')
+    conn.commit()
     conn.close()
-    return render_template('scanner.html', logs=logs)
+    flash('🗑️ Historique des scans réinitialisé.', 'success')
+    return redirect(url_for('scanner'))
 
 @app.route('/api/scan', methods=['POST'])
 @login_required
@@ -2182,7 +2178,7 @@ def api_scan():
             ''', (p['coach_id'],)).fetchone()
         historique = conn.execute('''
             SELECT timestamp, site, statut FROM access_logs
-            WHERE participant_id=? ORDER BY timestamp DESC LIMIT 5
+            WHERE participant_id=? ORDER BY timestamp DESC LIMIT 50
         ''', (p['id'],)).fetchall()
         conn.close()
         return jsonify(statut=statut, type='participant', nom=p['nom'], prenom=p['prenom'],
@@ -2211,7 +2207,7 @@ def api_scan():
         conn.commit()
         historique = conn.execute('''
             SELECT timestamp, site, statut FROM access_logs
-            WHERE juge_id=? ORDER BY timestamp DESC LIMIT 5
+            WHERE juge_id=? ORDER BY timestamp DESC LIMIT 50
         ''', (j['id'],)).fetchall()
         conn.close()
         return jsonify(statut=statut, type='juge', nom=j['nom'], prenom=j['prenom'],
@@ -2237,7 +2233,7 @@ def api_scan():
         conn.commit()
         historique = conn.execute('''
             SELECT timestamp, site, statut FROM access_logs
-            WHERE benevole_id=? ORDER BY timestamp DESC LIMIT 5
+            WHERE benevole_id=? ORDER BY timestamp DESC LIMIT 50
         ''', (b['id'],)).fetchall()
         conn.close()
         return jsonify(statut=statut, type='benevole', nom=b['nom'], prenom=b['prenom'],
