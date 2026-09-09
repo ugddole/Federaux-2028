@@ -2173,9 +2173,31 @@ def api_scan():
         statut = 'deja_scanne' if already else 'ok'
         conn.execute('INSERT INTO access_logs (participant_id,scanner_id,qr_token,site,statut) VALUES (?,?,?,?,?)',
             (p['id'], current_user.id, token, site, statut))
-        conn.commit(); conn.close()
+        conn.commit()
+        coach = None
+        if p['coach_id']:
+            coach = conn.execute('''
+                SELECT cu.nom AS coach_nom, cu.prenom AS coach_prenom, cp.telephone AS coach_telephone
+                FROM participants cp JOIN users cu ON cp.user_id=cu.id WHERE cp.id=?
+            ''', (p['coach_id'],)).fetchone()
+        historique = conn.execute('''
+            SELECT timestamp, site, statut FROM access_logs
+            WHERE participant_id=? ORDER BY timestamp DESC LIMIT 5
+        ''', (p['id'],)).fetchall()
+        conn.close()
         return jsonify(statut=statut, type='participant', nom=p['nom'], prenom=p['prenom'],
-                       club=p['club'], categorie=p['categorie'], dossard=p['numero_dossard'])
+                       club=p['club'], categorie=p['categorie'], dossard=p['numero_dossard'],
+                       telephone=p['telephone'] or '',
+                       options=[
+                           {'label': 'Repas samedi midi', 'actif': bool(p['repas_samedi_midi'])},
+                           {'label': 'Repas samedi soir', 'actif': bool(p['repas_samedi_soir'])},
+                           {'label': 'Gala', 'actif': bool(p['gala'])},
+                           {'label': 'Collation dimanche midi', 'actif': bool(p['collation_dimanche_midi'])},
+                       ],
+                       coach_nom=coach['coach_nom'] if coach else None,
+                       coach_prenom=coach['coach_prenom'] if coach else None,
+                       coach_telephone=coach['coach_telephone'] if coach else None,
+                       historique=[{'timestamp': l['timestamp'], 'site': l['site'], 'statut': l['statut']} for l in historique])
 
     j = conn.execute('''
         SELECT j.*,u.nom,u.prenom FROM juges j
@@ -2186,9 +2208,22 @@ def api_scan():
         statut = 'deja_scanne' if already else 'ok'
         conn.execute('INSERT INTO access_logs (juge_id,scanner_id,qr_token,site,statut) VALUES (?,?,?,?,?)',
             (j['id'], current_user.id, token, site, statut))
-        conn.commit(); conn.close()
+        conn.commit()
+        historique = conn.execute('''
+            SELECT timestamp, site, statut FROM access_logs
+            WHERE juge_id=? ORDER BY timestamp DESC LIMIT 5
+        ''', (j['id'],)).fetchall()
+        conn.close()
         return jsonify(statut=statut, type='juge', nom=j['nom'], prenom=j['prenom'],
-                       club=j['club'], categorie=j['categorie'], dossard=j['numero_dossard'])
+                       club=j['club'], categorie=j['categorie'], dossard=j['numero_dossard'],
+                       telephone=j['telephone'] or '',
+                       options=[
+                           {'label': 'Repas samedi midi', 'actif': bool(j['repas_samedi_midi'])},
+                           {'label': 'Repas samedi soir', 'actif': bool(j['repas_samedi_soir'])},
+                           {'label': 'Soirée juges', 'actif': bool(j['soiree_juges'])},
+                           {'label': 'Collation dimanche midi', 'actif': bool(j['collation_dimanche_midi'])},
+                       ],
+                       historique=[{'timestamp': l['timestamp'], 'site': l['site'], 'statut': l['statut']} for l in historique])
 
     b = conn.execute('''
         SELECT b.*,u.nom,u.prenom FROM benevoles b
@@ -2199,9 +2234,17 @@ def api_scan():
         statut = 'deja_scanne' if already else 'ok'
         conn.execute('INSERT INTO access_logs (benevole_id,scanner_id,qr_token,site,statut) VALUES (?,?,?,?,?)',
             (b['id'], current_user.id, token, site, statut))
-        conn.commit(); conn.close()
+        conn.commit()
+        historique = conn.execute('''
+            SELECT timestamp, site, statut FROM access_logs
+            WHERE benevole_id=? ORDER BY timestamp DESC LIMIT 5
+        ''', (b['id'],)).fetchall()
+        conn.close()
         return jsonify(statut=statut, type='benevole', nom=b['nom'], prenom=b['prenom'],
-                       club='Bénévole', categorie='BÉNÉVOLE', dossard=f'B{2028}{b["id"]:04d}')
+                       club='Bénévole', categorie='BÉNÉVOLE', dossard=f'B{2028}{b["id"]:04d}',
+                       telephone=b['telephone'] or '',
+                       options=[],
+                       historique=[{'timestamp': l['timestamp'], 'site': l['site'], 'statut': l['statut']} for l in historique])
 
     conn.close()
     return jsonify(statut='invalide', message='QR code non reconnu'), 404
