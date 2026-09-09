@@ -97,9 +97,6 @@
     {% endif %}
 
 {% if current_user.is_staff or current_user.has_droit('organisation') or current_user.has_droit('communication') or current_user.has_droit('administration') %}
-    <a href="{{ url_for('coachs_list') }}" class="nav-link {% if 'coach' in request.endpoint %}active{% endif %}">
-      <i class="bi bi-person-vcard-fill"></i> Coachs
-    </a>
     <a href="{{ url_for('contacts_list') }}" class="nav-link {% if 'contact' in request.endpoint %}active{% endif %}">
       <i class="bi bi-person-lines-fill"></i> Contacts
     </a>
