@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Coachs{% endblock %}
+{% block page_title %}<i class="bi bi-person-vcard-fill me-2"></i>Coachs ({{ coachs|length }}){% endblock %}
+{% block topbar_actions %}
+{% if current_user.is_staff or current_user.has_droit('organisation') or current_user.has_droit('communication') or current_user.has_droit('administration') %}
+<a href="{{ url_for('coach_new') }}" class="btn-fscf"><i class="bi bi-plus-lg me-1"></i>Ajouter</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="fscf-card">
+  <div class="fscf-card-body p-0">
+    {% if coachs %}
+    <table class="fscf-table">
+      <thead><tr>
+        <th>Nom / Prénom</th><th>Téléphone</th><th>Gymnastes suivis</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+      {% for c in coachs %}
+      <tr>
+        <td><strong>{{ c.nom }} {{ c.prenom }}</strong></td>
+        <td>
+          {% if c.telephone %}<a href="tel:{{ c.telephone }}">{{ c.telephone }}</a>{% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+        <td><span class="badge bg-secondary">{{ c.nb_gymnastes or 0 }}</span></td>
+        <td>
+          {% if current_user.is_staff or current_user.has_droit('organisation') or current_user.has_droit('communication') or current_user.has_droit('administration') %}
+          <a href="{{ url_for('coach_edit', id=c.id) }}" class="btn btn-sm btn-outline-primary me-1" title="Modifier"><i class="bi bi-pencil"></i></a>
+          {% endif %}
+          {% if current_user.is_staff or current_user.has_droit('organisation') or current_user.has_droit('communication') or current_user.has_droit('administration') %}
+          <form method="post" action="{{ url_for('coach_delete', id=c.id) }}" style="display:inline;"
+                onsubmit="return confirm('Supprimer {{ c.prenom }} {{ c.nom }} ? Les gymnastes rattachés n\'auront plus de coach.');">
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-person-vcard fs-1 d-block mb-3"></i>
+      <p>Aucun coach enregistré pour le moment.</p>
+      {% if current_user.is_admin %}<a href="{{ url_for('coach_new') }}" class="btn-fscf">Ajouter le premier coach</a>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

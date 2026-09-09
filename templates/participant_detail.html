@@ -36,6 +36,20 @@
       </div>
     </div>
 
+    <div class="fscf-card mb-3">
+      <div class="fscf-card-header"><i class="bi bi-person-vcard me-2"></i>Coach responsable</div>
+      <div class="fscf-card-body">
+        {% if p.coach_nom %}
+        <table class="w-100" style="font-size:13px;">
+          <tr><td class="text-muted py-1">Nom</td><td><strong>{{ p.coach_nom }} {{ p.coach_prenom }}</strong></td></tr>
+          <tr><td class="text-muted py-1">Téléphone</td><td>{% if p.coach_telephone %}<a href="tel:{{ p.coach_telephone }}">{{ p.coach_telephone }}</a>{% else %}—{% endif %}</td></tr>
+        </table>
+        {% else %}
+        <div class="text-muted text-center py-2"><i class="bi bi-person-x fs-4 d-block mb-1"></i>Aucun coach renseigné</div>
+        {% endif %}
+      </div>
+    </div>
+
     <div class="fscf-card">
       <div class="fscf-card-header"><i class="bi bi-qr-code me-2"></i>QR Code d'accès</div>
       <div class="fscf-card-body">
