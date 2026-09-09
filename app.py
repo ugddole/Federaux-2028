@@ -1242,7 +1242,7 @@ def participants_badges_all():
     return send_file(path, as_attachment=True, download_name=os.path.basename(path))
 
 # ── JUGES ─────────────────────────────────────────────────────────────────────
-PARTICIPANT_CATEGORIES = ['Poussines / Benjamines', 'Minimes Féminines', 'Cadettes', 'Juniors Féminines', 'Séniors Féminines', 'Coach']
+PARTICIPANT_CATEGORIES = ['Jeunesse Fédéral', 'Jeunesse Fédéral 1', 'Ainée Fédéral', 'Ainée Fédéral 1', 'Coach']
 JUGE_CATEGORIES = ['Juge Régional', 'Juge National', 'Juge International', 'Juge Fédéral']
 
 @app.route('/juges')
