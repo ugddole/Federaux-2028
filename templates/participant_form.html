@@ -52,6 +52,10 @@
           <input type="text" name="dossard" class="form-control" value="{{ item.numero_dossard if item else '' }}" placeholder="Généré automatiquement">
         </div>
         <div class="col-md-6">
+          <label class="form-label fw-semibold">Téléphone</label>
+          <input type="tel" name="telephone" class="form-control" value="{{ item.telephone if item else '' }}" placeholder="06 12 34 56 78">
+        </div>
+        <div class="col-md-6">
           <label class="form-label fw-semibold">Coach responsable</label>
           <select name="coach_id" class="form-select">
             <option value="">— Aucun —</option>
