@@ -76,24 +76,68 @@ let scanner = null;
 
 function showResult(data) {
   const box = document.getElementById('scan-result');
-  let cls, icon, content;
-  if (data.statut === 'ok') {
-    cls = 'scan-ok'; icon = '✅';
-    content = `<div class="scan-name">${data.prenom} ${data.nom}</div>
-               <div style="font-size:13px;margin-top:4px;">${data.club} — ${data.categorie}</div>
-               <div><strong>Dossard N° ${data.dossard}</strong></div>
-               <div class="badge bg-success mt-2">Accès VALIDÉ</div>`;
-  } else if (data.statut === 'deja_scanne') {
-    cls = 'scan-warn'; icon = '⚠️';
-    content = `<div class="scan-name">${data.prenom} ${data.nom}</div>
-               <div class="badge bg-warning text-dark mt-2">DÉJÀ SCANNÉ aujourd'hui</div>`;
-  } else {
-    cls = 'scan-err'; icon = '❌';
-    content = `<div class="scan-name">Accès REFUSÉ</div>
-               <div style="font-size:13px;">${data.message || 'QR code non reconnu'}</div>`;
+
+  if (data.statut !== 'ok' && data.statut !== 'deja_scanne') {
+    box.innerHTML = `<div class="scan-result scan-err">
+        <i class="bi bi-x-circle-fill" style="font-size:32px;"></i>
+        <div class="scan-name mt-2">Accès refusé</div>
+        <div style="font-size:13px;">${data.message || 'QR code non reconnu'}</div>
+      </div>`;
+    setTimeout(() => { box.innerHTML = ''; }, 6000);
+    return;
   }
-  box.innerHTML = `<div class="scan-result ${cls}">${icon}<br>${content}</div>`;
-  setTimeout(() => { box.innerHTML = ''; }, 4000);
+
+  const cls = data.statut === 'ok' ? 'scan-ok' : 'scan-warn';
+  const icon = data.statut === 'ok' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill';
+  const statutBadge = data.statut === 'ok'
+    ? '<span class="badge bg-success mt-2">Accès validé</span>'
+    : '<span class="badge bg-warning text-dark mt-2">Déjà scanné aujourd\'hui</span>';
+
+  let optionsHtml = '';
+  if (data.options && data.options.length) {
+    optionsHtml = `<div class="mt-2 d-flex flex-wrap justify-content-center gap-1">` +
+      data.options.map(o => `<span class="badge ${o.actif ? 'bg-success' : 'bg-secondary'}" style="font-size:10.5px;">${o.label}</span>`).join('') +
+      `</div>`;
+  }
+
+  let coachHtml = '';
+  if (data.coach_nom) {
+    coachHtml = `<div class="mt-2 pt-2 border-top" style="font-size:12.5px;">
+        <i class="bi bi-person-vcard me-1"></i>Coach : <strong>${data.coach_prenom} ${data.coach_nom}</strong>
+        ${data.coach_telephone ? `<br><a href="tel:${data.coach_telephone}" style="color:inherit;">${data.coach_telephone}</a>` : ''}
+      </div>`;
+  }
+
+  let histoHtml = '';
+  if (data.historique && data.historique.length) {
+    histoHtml = `<div class="mt-2 pt-2 border-top" style="font-size:11px;text-align:left;">
+        <div class="text-muted mb-1" style="font-size:10.5px;">Derniers scans</div>` +
+      data.historique.map(l => {
+        const heure = (l.timestamp || '').slice(11, 16);
+        const badge = l.statut === 'ok' ? '<span class="badge bg-success">OK</span>'
+          : l.statut === 'deja_scanne' ? '<span class="badge bg-warning text-dark">Déjà</span>'
+          : `<span class="badge bg-danger">${l.statut}</span>`;
+        return `<div class="d-flex justify-content-between align-items-center py-1">
+                  <span>${heure} — ${l.site}</span>${badge}
+                </div>`;
+      }).join('') +
+      `</div>`;
+  }
+
+  const content = `
+    <i class="bi ${icon}" style="font-size:28px;"></i>
+    <div class="scan-name mt-1">${data.prenom} ${data.nom}</div>
+    <div style="font-size:13px;">${data.club} — ${data.categorie}</div>
+    <div><strong>Dossard N° ${data.dossard}</strong></div>
+    ${data.telephone ? `<div style="font-size:12px;" class="text-muted"><a href="tel:${data.telephone}" style="color:inherit;">${data.telephone}</a></div>` : ''}
+    ${statutBadge}
+    ${optionsHtml}
+    ${coachHtml}
+    ${histoHtml}
+  `;
+
+  box.innerHTML = `<div class="scan-result ${cls}">${content}</div>`;
+  setTimeout(() => { box.innerHTML = ''; }, 9000);
 }
 
 async function doScan(token) {
@@ -106,7 +150,7 @@ async function doScan(token) {
     });
     const d = await r.json();
     showResult(d);
-    if (r.ok) setTimeout(() => location.reload(), 4500);
+    if (r.ok) setTimeout(() => location.reload(), 9500);
   } catch(e) {
     showResult({statut: 'erreur', message: 'Erreur de connexion'});
   }
