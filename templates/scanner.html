@@ -35,34 +35,25 @@
     </div>
   </div>
 
-  <!-- Logs récents -->
+  <!-- Fiche de la personne scannée -->
   <div class="col-lg-7">
     <div class="fscf-card">
-      <div class="fscf-card-header"><i class="bi bi-clock-history me-2"></i>Derniers accès (20)</div>
-      <div class="fscf-card-body p-0" id="logs-container">
-        {% if logs %}
-        <table class="fscf-table">
-          <thead><tr><th>Heure</th><th>Gymnaste</th><th>Cat.</th><th>Dossard</th><th>Site</th><th>Statut</th></tr></thead>
-          <tbody>
-          {% for l in logs %}
-          <tr>
-            <td style="font-size:11px;color:#888;">{{ l.timestamp[11:16] }}</td>
-            <td><strong>{{ l.prenom }} {{ l.nom }}</strong><br><small class="text-muted">{{ l.club }}</small></td>
-            <td style="font-size:11px;">{{ l.categorie }}</td>
-            <td><code>{{ l.numero_dossard }}</code></td>
-            <td style="font-size:11px;">{{ l.site }}</td>
-            <td>
-              {% if l.statut=='ok' %}<span class="badge bg-success">✓ OK</span>
-              {% elif l.statut=='deja_scanne' %}<span class="badge bg-warning text-dark">⚠ Déjà scanné</span>
-              {% else %}<span class="badge bg-danger">✗ Invalide</span>{% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-        {% else %}
-        <div class="p-5 text-center text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i>Aucun scan enregistré</div>
+      <div class="fscf-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-person-badge me-2"></i>Fiche de la personne scannée</span>
+        {% if current_user.is_admin %}
+        <form method="post" action="{{ url_for('scanner_reset') }}"
+              onsubmit="return confirm('Supprimer tout l\'historique des scans ? Cette action est irréversible.');">
+          <button type="submit" class="btn btn-sm btn-outline-danger" title="Réinitialiser l'historique des scans">
+            <i class="bi bi-trash3 me-1"></i>Réinitialiser
+          </button>
+        </form>
         {% endif %}
+      </div>
+      <div class="fscf-card-body" id="fiche-scanne">
+        <div class="p-5 text-center text-muted">
+          <i class="bi bi-qr-code-scan fs-1 d-block mb-2"></i>
+          Scannez un badge pour afficher sa fiche ici.
+        </div>
       </div>
     </div>
   </div>
@@ -74,70 +65,82 @@
 <script>
 let scanner = null;
 
-function showResult(data) {
+function showInvalide(data) {
   const box = document.getElementById('scan-result');
+  box.innerHTML = `<div class="scan-result scan-err">
+      <i class="bi bi-x-circle-fill" style="font-size:32px;"></i>
+      <div class="scan-name mt-2">Accès refusé</div>
+      <div style="font-size:13px;">${data.message || 'QR code non reconnu'}</div>
+    </div>`;
+  setTimeout(() => { box.innerHTML = ''; }, 6000);
+}
 
-  if (data.statut !== 'ok' && data.statut !== 'deja_scanne') {
-    box.innerHTML = `<div class="scan-result scan-err">
-        <i class="bi bi-x-circle-fill" style="font-size:32px;"></i>
-        <div class="scan-name mt-2">Accès refusé</div>
-        <div style="font-size:13px;">${data.message || 'QR code non reconnu'}</div>
-      </div>`;
-    setTimeout(() => { box.innerHTML = ''; }, 6000);
-    return;
-  }
+function showFiche(data) {
+  const panel = document.getElementById('fiche-scanne');
 
-  const cls = data.statut === 'ok' ? 'scan-ok' : 'scan-warn';
-  const icon = data.statut === 'ok' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill';
+  const bordure = data.statut === 'ok' ? '#28a745' : '#e8a800';
   const statutBadge = data.statut === 'ok'
-    ? '<span class="badge bg-success mt-2">Accès validé</span>'
-    : '<span class="badge bg-warning text-dark mt-2">Déjà scanné aujourd\'hui</span>';
+    ? '<span class="badge bg-success">Accès validé</span>'
+    : '<span class="badge bg-warning text-dark">Déjà scanné aujourd\'hui</span>';
 
   let optionsHtml = '';
   if (data.options && data.options.length) {
-    optionsHtml = `<div class="mt-2 d-flex flex-wrap justify-content-center gap-1">` +
-      data.options.map(o => `<span class="badge ${o.actif ? 'bg-success' : 'bg-secondary'}" style="font-size:10.5px;">${o.label}</span>`).join('') +
+    optionsHtml = `<div class="mt-2 d-flex flex-wrap gap-1">` +
+      data.options.map(o => `<span class="badge ${o.actif ? 'bg-success' : 'bg-secondary'}">${o.label}</span>`).join('') +
       `</div>`;
   }
 
   let coachHtml = '';
   if (data.coach_nom) {
-    coachHtml = `<div class="mt-2 pt-2 border-top" style="font-size:12.5px;">
-        <i class="bi bi-person-vcard me-1"></i>Coach : <strong>${data.coach_prenom} ${data.coach_nom}</strong>
-        ${data.coach_telephone ? `<br><a href="tel:${data.coach_telephone}" style="color:inherit;">${data.coach_telephone}</a>` : ''}
+    coachHtml = `<div class="mt-3 pt-2 border-top" style="font-size:13px;">
+        <i class="bi bi-person-vcard me-1"></i>Coach responsable : <strong>${data.coach_prenom} ${data.coach_nom}</strong>
+        ${data.coach_telephone ? ` — <a href="tel:${data.coach_telephone}">${data.coach_telephone}</a>` : ''}
       </div>`;
   }
 
-  let histoHtml = '';
+  let histoHtml = '<div class="p-3 text-center text-muted" style="font-size:12px;">Aucun scan enregistré.</div>';
   if (data.historique && data.historique.length) {
-    histoHtml = `<div class="mt-2 pt-2 border-top" style="font-size:11px;text-align:left;">
-        <div class="text-muted mb-1" style="font-size:10.5px;">Derniers scans</div>` +
+    histoHtml = `<table class="fscf-table mb-0">
+        <thead><tr><th>Heure</th><th>Site</th><th>Statut</th></tr></thead>
+        <tbody>` +
       data.historique.map(l => {
-        const heure = (l.timestamp || '').slice(11, 16);
+        const heure = (l.timestamp || '').slice(0, 16).replace('T', ' ');
         const badge = l.statut === 'ok' ? '<span class="badge bg-success">OK</span>'
-          : l.statut === 'deja_scanne' ? '<span class="badge bg-warning text-dark">Déjà</span>'
+          : l.statut === 'deja_scanne' ? '<span class="badge bg-warning text-dark">Déjà scanné</span>'
           : `<span class="badge bg-danger">${l.statut}</span>`;
-        return `<div class="d-flex justify-content-between align-items-center py-1">
-                  <span>${heure} — ${l.site}</span>${badge}
-                </div>`;
+        return `<tr><td style="font-size:12px;">${heure}</td><td style="font-size:12px;">${l.site}</td><td>${badge}</td></tr>`;
       }).join('') +
-      `</div>`;
+      `</tbody></table>`;
   }
 
-  const content = `
-    <i class="bi ${icon}" style="font-size:28px;"></i>
-    <div class="scan-name mt-1">${data.prenom} ${data.nom}</div>
-    <div style="font-size:13px;">${data.club} — ${data.categorie}</div>
-    <div><strong>Dossard N° ${data.dossard}</strong></div>
-    ${data.telephone ? `<div style="font-size:12px;" class="text-muted"><a href="tel:${data.telephone}" style="color:inherit;">${data.telephone}</a></div>` : ''}
-    ${statutBadge}
-    ${optionsHtml}
-    ${coachHtml}
-    ${histoHtml}
+  panel.innerHTML = `
+    <div style="border-left:4px solid ${bordure};padding-left:14px;">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <div style="font-size:19px;font-weight:700;">${data.prenom} ${data.nom}</div>
+          <div style="font-size:13px;color:#666;">${data.club} — ${data.categorie}</div>
+          <div style="font-size:13px;"><strong>Licence N° ${data.dossard}</strong>
+            ${data.telephone ? ` · <a href="tel:${data.telephone}">${data.telephone}</a>` : ''}
+          </div>
+        </div>
+        <div>${statutBadge}</div>
+      </div>
+      ${optionsHtml}
+      ${coachHtml}
+    </div>
+    <div class="mt-3 pt-3 border-top">
+      <div class="fw-semibold mb-2" style="font-size:13px;"><i class="bi bi-clock-history me-1"></i>Historique des scans (${(data.historique||[]).length})</div>
+      <div style="max-height:320px;overflow-y:auto;">${histoHtml}</div>
+    </div>
   `;
+}
 
-  box.innerHTML = `<div class="scan-result ${cls}">${content}</div>`;
-  setTimeout(() => { box.innerHTML = ''; }, 9000);
+function showResult(data) {
+  if (data.statut === 'ok' || data.statut === 'deja_scanne') {
+    showFiche(data);
+  } else {
+    showInvalide(data);
+  }
 }
 
 async function doScan(token) {
@@ -150,9 +153,8 @@ async function doScan(token) {
     });
     const d = await r.json();
     showResult(d);
-    if (r.ok) setTimeout(() => location.reload(), 9500);
   } catch(e) {
-    showResult({statut: 'erreur', message: 'Erreur de connexion'});
+    showInvalide({message: 'Erreur de connexion'});
   }
 }
 
