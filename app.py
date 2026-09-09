@@ -313,6 +313,12 @@ def init_db():
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS coachs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL,
+            prenom TEXT NOT NULL,
+            telephone TEXT DEFAULT ''
+        );
         CREATE TABLE IF NOT EXISTS contacts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             societe TEXT DEFAULT '',
@@ -342,6 +348,7 @@ DEFAULT_DROITS_CONFIG = {
     ('page', 'scanner'): {'competition', 'organisation', 'juges', 'staff'},
     ('page', 'taches'): {'organisation', 'communication', 'staff'},
     ('page', 'materiel'): {'organisation', 'communication', 'staff'},
+    ('page', 'coachs'): {'organisation', 'communication', 'administration', 'staff'},
     ('page', 'contacts'): {'organisation', 'communication', 'administration', 'staff'},
     ('page', 'budget'): {'organisation', 'staff'},
     ('forum_cat', 'Bénévoles'): {'organisation', 'communication', 'staff'},
@@ -469,6 +476,11 @@ def migrate_db():
         conn.commit()
     except Exception:
         pass
+    try:
+        c.execute("ALTER TABLE participants ADD COLUMN coach_id INTEGER DEFAULT NULL REFERENCES coachs(id)")
+        conn.commit()
+    except Exception:
+        pass
 
     if not c.execute("SELECT id FROM users WHERE email='admin@dole2028.fr'").fetchone():
         c.execute("INSERT INTO users (email,password_hash,nom,prenom,role) VALUES (?,?,?,?,?)",
@@ -555,6 +567,11 @@ def peut_gerer_contacts():
     return (current_user.is_staff or current_user.has_droit('organisation')
             or current_user.has_droit('communication') or current_user.has_droit('administration'))
 
+def peut_gerer_coachs():
+    """Lecture/écriture sur les Coachs : mêmes droits que Contacts."""
+    return (current_user.is_staff or current_user.has_droit('organisation')
+            or current_user.has_droit('communication') or current_user.has_droit('administration'))
+
 PAGE_DEFS = {
     'participants': {'url': 'participants_list', 'icon': 'bi-people-fill', 'label': 'Participants'},
     'juges': {'url': 'juges_list', 'icon': 'bi-award-fill', 'label': 'Juges'},
@@ -565,6 +582,7 @@ PAGE_DEFS = {
     'scanner': {'url': 'scanner', 'icon': 'bi-qr-code-scan', 'label': 'Scanner'},
     'taches': {'url': 'taches_list', 'icon': 'bi-check2-square', 'label': 'Tâches'},
     'materiel': {'url': 'materiel_list', 'icon': 'bi-box-seam-fill', 'label': 'Matériel'},
+    'coachs': {'url': 'coachs_list', 'icon': 'bi-person-vcard-fill', 'label': 'Coachs'},
     'contacts': {'url': 'contacts_list', 'icon': 'bi-person-lines-fill', 'label': 'Contacts'},
     'budget': {'url': 'budget_list', 'icon': 'bi-cash-coin', 'label': 'Budget'},
 }
@@ -1127,11 +1145,12 @@ def participant_new():
             token = str(uuid.uuid4())
             count = conn.execute('SELECT COUNT(*) FROM participants').fetchone()[0]
             dossard = f.get('dossard','').strip() or f'D{2028}{count+1:04d}'
+            coach_id = f.get('coach_id') or None
             conn.execute('''INSERT INTO participants
-                (user_id,club,region,categorie,numero_dossard,qr_token,notes,telephone,
+                (user_id,club,region,categorie,numero_dossard,qr_token,notes,telephone,coach_id,
                  repas_samedi_midi,repas_samedi_soir,gala,collation_dimanche_midi)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
-                (uid, f['club'].strip(), f.get('region','').strip(), f['categorie'].strip(), dossard, token, f.get('notes',''), f.get('telephone','').strip(),
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                (uid, f['club'].strip(), f.get('region','').strip(), f['categorie'].strip(), dossard, token, f.get('notes',''), f.get('telephone','').strip(), coach_id,
                  1 if f.get('repas_samedi_midi') else 0,
                  1 if f.get('repas_samedi_soir') else 0,
                  1 if f.get('gala') else 0,
@@ -1144,13 +1163,19 @@ def participant_new():
         except sqlite3.IntegrityError as e:
             conn.rollback(); conn.close()
             flash('Email ou dossard déjà utilisé.', 'danger')
-    return render_template('participant_form.html', action='new', item=None, cats=PARTICIPANT_CATEGORIES)
+    coachs = get_db().execute('SELECT * FROM coachs ORDER BY nom, prenom').fetchall()
+    return render_template('participant_form.html', action='new', item=None, cats=PARTICIPANT_CATEGORIES, coachs=coachs)
 
 @app.route('/participants/<int:id>')
 @login_required
 def participant_detail(id):
     conn = get_db()
-    p = conn.execute('SELECT p.*,u.nom,u.prenom,u.email FROM participants p JOIN users u ON p.user_id=u.id WHERE p.id=?',(id,)).fetchone()
+    p = conn.execute('''SELECT p.*, u.nom, u.prenom, u.email,
+                        c.nom AS coach_nom, c.prenom AS coach_prenom, c.telephone AS coach_telephone
+                        FROM participants p
+                        JOIN users u ON p.user_id=u.id
+                        LEFT JOIN coachs c ON p.coach_id=c.id
+                        WHERE p.id=?''', (id,)).fetchone()
     if not p: abort(404)
     logs = conn.execute('''
         SELECT al.*,su.nom snom,su.prenom sprenom FROM access_logs al
@@ -1170,9 +1195,10 @@ def participant_edit(id):
     if request.method == 'POST':
         f = request.form
         conn.execute('UPDATE users SET nom=?,prenom=? WHERE id=?',(f['nom'],f['prenom'],p['user_id']))
-        conn.execute('''UPDATE participants SET club=?,region=?,categorie=?,numero_dossard=?,notes=?,telephone=?,
+        coach_id = f.get('coach_id') or None
+        conn.execute('''UPDATE participants SET club=?,region=?,categorie=?,numero_dossard=?,notes=?,telephone=?,coach_id=?,
                         repas_samedi_midi=?,repas_samedi_soir=?,gala=?,collation_dimanche_midi=? WHERE id=?''',
-            (f['club'],f.get('region',''),f['categorie'],f['dossard'],f.get('notes',''),f.get('telephone','').strip(),
+            (f['club'],f.get('region',''),f['categorie'],f['dossard'],f.get('notes',''),f.get('telephone','').strip(),coach_id,
              1 if f.get('repas_samedi_midi') else 0,
              1 if f.get('repas_samedi_soir') else 0,
              1 if f.get('gala') else 0,
@@ -1181,8 +1207,9 @@ def participant_edit(id):
         conn.commit(); conn.close()
         flash('Participant mis à jour.','success')
         return redirect(url_for('participant_detail', id=id))
+    coachs = conn.execute('SELECT * FROM coachs ORDER BY nom, prenom').fetchall()
     conn.close()
-    return render_template('participant_form.html', action='edit', item=p, cats=PARTICIPANT_CATEGORIES)
+    return render_template('participant_form.html', action='edit', item=p, cats=PARTICIPANT_CATEGORIES, coachs=coachs)
 
 @app.route('/participants/<int:id>/delete', methods=['POST'])
 @login_required
@@ -3475,6 +3502,75 @@ def materiel_import_confirm():
     conn.commit(); conn.close()
     flash(f'✅ Import terminé — {ok} article(s) créé(s), {skip} ignoré(s).', 'success' if ok else 'warning')
     return redirect(url_for('materiel_list'))
+
+# ── COACHS ────────────────────────────────────────────────────────────────────
+@app.route('/coachs')
+@login_required
+def coachs_list():
+    if not est_autorise('page', 'coachs', current_user): abort(403)
+    conn = get_db()
+    coachs = conn.execute('''
+        SELECT c.*, COUNT(p.id) AS nb_gymnastes
+        FROM coachs c
+        LEFT JOIN participants p ON p.coach_id = c.id
+        GROUP BY c.id
+        ORDER BY c.nom, c.prenom
+    ''').fetchall()
+    conn.close()
+    return render_template('coachs_list.html', coachs=coachs)
+
+@app.route('/coachs/nouveau', methods=['GET', 'POST'])
+@login_required
+def coach_new():
+    if not peut_gerer_coachs(): abort(403)
+    if request.method == 'POST':
+        f = request.form
+        nom = f.get('nom', '').strip()
+        prenom = f.get('prenom', '').strip()
+        if not nom or not prenom:
+            flash('Le nom et le prénom sont obligatoires.', 'danger')
+            return render_template('coach_form.html', action='new', item=None)
+        conn = get_db()
+        conn.execute('INSERT INTO coachs (nom, prenom, telephone) VALUES (?,?,?)',
+                     (nom, prenom, f.get('telephone', '').strip()))
+        conn.commit(); conn.close()
+        flash('Coach ajouté.', 'success')
+        return redirect(url_for('coachs_list'))
+    return render_template('coach_form.html', action='new', item=None)
+
+@app.route('/coachs/<int:id>/modifier', methods=['GET', 'POST'])
+@login_required
+def coach_edit(id):
+    if not peut_gerer_coachs(): abort(403)
+    conn = get_db()
+    item = conn.execute('SELECT * FROM coachs WHERE id=?', (id,)).fetchone()
+    if not item: conn.close(); abort(404)
+    if request.method == 'POST':
+        f = request.form
+        nom = f.get('nom', '').strip()
+        prenom = f.get('prenom', '').strip()
+        if not nom or not prenom:
+            conn.close()
+            flash('Le nom et le prénom sont obligatoires.', 'danger')
+            return render_template('coach_form.html', action='edit', item=item)
+        conn.execute('UPDATE coachs SET nom=?, prenom=?, telephone=? WHERE id=?',
+                     (nom, prenom, f.get('telephone', '').strip(), id))
+        conn.commit(); conn.close()
+        flash('Coach mis à jour.', 'success')
+        return redirect(url_for('coachs_list'))
+    conn.close()
+    return render_template('coach_form.html', action='edit', item=item)
+
+@app.route('/coachs/<int:id>/supprimer', methods=['POST'])
+@login_required
+def coach_delete(id):
+    if not peut_gerer_coachs(): abort(403)
+    conn = get_db()
+    conn.execute('UPDATE participants SET coach_id=NULL WHERE coach_id=?', (id,))
+    conn.execute('DELETE FROM coachs WHERE id=?', (id,))
+    conn.commit(); conn.close()
+    flash('Coach supprimé.', 'success')
+    return redirect(url_for('coachs_list'))
 
 # ── CONTACTS ──────────────────────────────────────────────────────────────────
 @app.route('/contacts')
