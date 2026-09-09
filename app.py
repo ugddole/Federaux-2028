@@ -313,12 +313,6 @@ def init_db():
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
-        CREATE TABLE IF NOT EXISTS coachs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nom TEXT NOT NULL,
-            prenom TEXT NOT NULL,
-            telephone TEXT DEFAULT ''
-        );
         CREATE TABLE IF NOT EXISTS contacts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             societe TEXT DEFAULT '',
@@ -348,7 +342,6 @@ DEFAULT_DROITS_CONFIG = {
     ('page', 'scanner'): {'competition', 'organisation', 'juges', 'staff'},
     ('page', 'taches'): {'organisation', 'communication', 'staff'},
     ('page', 'materiel'): {'organisation', 'communication', 'staff'},
-    ('page', 'coachs'): {'organisation', 'communication', 'administration', 'staff'},
     ('page', 'contacts'): {'organisation', 'communication', 'administration', 'staff'},
     ('page', 'budget'): {'organisation', 'staff'},
     ('forum_cat', 'Bénévoles'): {'organisation', 'communication', 'staff'},
@@ -477,7 +470,7 @@ def migrate_db():
     except Exception:
         pass
     try:
-        c.execute("ALTER TABLE participants ADD COLUMN coach_id INTEGER DEFAULT NULL REFERENCES coachs(id)")
+        c.execute("ALTER TABLE participants ADD COLUMN coach_id INTEGER DEFAULT NULL REFERENCES participants(id)")
         conn.commit()
     except Exception:
         pass
@@ -567,11 +560,6 @@ def peut_gerer_contacts():
     return (current_user.is_staff or current_user.has_droit('organisation')
             or current_user.has_droit('communication') or current_user.has_droit('administration'))
 
-def peut_gerer_coachs():
-    """Lecture/écriture sur les Coachs : mêmes droits que Contacts."""
-    return (current_user.is_staff or current_user.has_droit('organisation')
-            or current_user.has_droit('communication') or current_user.has_droit('administration'))
-
 PAGE_DEFS = {
     'participants': {'url': 'participants_list', 'icon': 'bi-people-fill', 'label': 'Participants'},
     'juges': {'url': 'juges_list', 'icon': 'bi-award-fill', 'label': 'Juges'},
@@ -582,7 +570,6 @@ PAGE_DEFS = {
     'scanner': {'url': 'scanner', 'icon': 'bi-qr-code-scan', 'label': 'Scanner'},
     'taches': {'url': 'taches_list', 'icon': 'bi-check2-square', 'label': 'Tâches'},
     'materiel': {'url': 'materiel_list', 'icon': 'bi-box-seam-fill', 'label': 'Matériel'},
-    'coachs': {'url': 'coachs_list', 'icon': 'bi-person-vcard-fill', 'label': 'Coachs'},
     'contacts': {'url': 'contacts_list', 'icon': 'bi-person-lines-fill', 'label': 'Contacts'},
     'budget': {'url': 'budget_list', 'icon': 'bi-cash-coin', 'label': 'Budget'},
 }
@@ -1163,7 +1150,10 @@ def participant_new():
         except sqlite3.IntegrityError as e:
             conn.rollback(); conn.close()
             flash('Email ou dossard déjà utilisé.', 'danger')
-    coachs = get_db().execute('SELECT * FROM coachs ORDER BY nom, prenom').fetchall()
+    coachs = get_db().execute('''
+        SELECT p.id, u.nom, u.prenom FROM participants p JOIN users u ON p.user_id=u.id
+        WHERE p.categorie='Coach' ORDER BY u.nom, u.prenom
+    ''').fetchall()
     return render_template('participant_form.html', action='new', item=None, cats=PARTICIPANT_CATEGORIES, coachs=coachs)
 
 @app.route('/participants/<int:id>')
@@ -1171,10 +1161,11 @@ def participant_new():
 def participant_detail(id):
     conn = get_db()
     p = conn.execute('''SELECT p.*, u.nom, u.prenom, u.email,
-                        c.nom AS coach_nom, c.prenom AS coach_prenom, c.telephone AS coach_telephone
+                        cu.nom AS coach_nom, cu.prenom AS coach_prenom, cp.telephone AS coach_telephone
                         FROM participants p
                         JOIN users u ON p.user_id=u.id
-                        LEFT JOIN coachs c ON p.coach_id=c.id
+                        LEFT JOIN participants cp ON p.coach_id=cp.id
+                        LEFT JOIN users cu ON cp.user_id=cu.id
                         WHERE p.id=?''', (id,)).fetchone()
     if not p: abort(404)
     logs = conn.execute('''
@@ -1207,7 +1198,10 @@ def participant_edit(id):
         conn.commit(); conn.close()
         flash('Participant mis à jour.','success')
         return redirect(url_for('participant_detail', id=id))
-    coachs = conn.execute('SELECT * FROM coachs ORDER BY nom, prenom').fetchall()
+    coachs = conn.execute('''
+        SELECT p2.id, u2.nom, u2.prenom FROM participants p2 JOIN users u2 ON p2.user_id=u2.id
+        WHERE p2.categorie='Coach' AND p2.id!=? ORDER BY u2.nom, u2.prenom
+    ''', (id,)).fetchall()
     conn.close()
     return render_template('participant_form.html', action='edit', item=p, cats=PARTICIPANT_CATEGORIES, coachs=coachs)
 
@@ -3502,75 +3496,6 @@ def materiel_import_confirm():
     conn.commit(); conn.close()
     flash(f'✅ Import terminé — {ok} article(s) créé(s), {skip} ignoré(s).', 'success' if ok else 'warning')
     return redirect(url_for('materiel_list'))
-
-# ── COACHS ────────────────────────────────────────────────────────────────────
-@app.route('/coachs')
-@login_required
-def coachs_list():
-    if not est_autorise('page', 'coachs', current_user): abort(403)
-    conn = get_db()
-    coachs = conn.execute('''
-        SELECT c.*, COUNT(p.id) AS nb_gymnastes
-        FROM coachs c
-        LEFT JOIN participants p ON p.coach_id = c.id
-        GROUP BY c.id
-        ORDER BY c.nom, c.prenom
-    ''').fetchall()
-    conn.close()
-    return render_template('coachs_list.html', coachs=coachs)
-
-@app.route('/coachs/nouveau', methods=['GET', 'POST'])
-@login_required
-def coach_new():
-    if not peut_gerer_coachs(): abort(403)
-    if request.method == 'POST':
-        f = request.form
-        nom = f.get('nom', '').strip()
-        prenom = f.get('prenom', '').strip()
-        if not nom or not prenom:
-            flash('Le nom et le prénom sont obligatoires.', 'danger')
-            return render_template('coach_form.html', action='new', item=None)
-        conn = get_db()
-        conn.execute('INSERT INTO coachs (nom, prenom, telephone) VALUES (?,?,?)',
-                     (nom, prenom, f.get('telephone', '').strip()))
-        conn.commit(); conn.close()
-        flash('Coach ajouté.', 'success')
-        return redirect(url_for('coachs_list'))
-    return render_template('coach_form.html', action='new', item=None)
-
-@app.route('/coachs/<int:id>/modifier', methods=['GET', 'POST'])
-@login_required
-def coach_edit(id):
-    if not peut_gerer_coachs(): abort(403)
-    conn = get_db()
-    item = conn.execute('SELECT * FROM coachs WHERE id=?', (id,)).fetchone()
-    if not item: conn.close(); abort(404)
-    if request.method == 'POST':
-        f = request.form
-        nom = f.get('nom', '').strip()
-        prenom = f.get('prenom', '').strip()
-        if not nom or not prenom:
-            conn.close()
-            flash('Le nom et le prénom sont obligatoires.', 'danger')
-            return render_template('coach_form.html', action='edit', item=item)
-        conn.execute('UPDATE coachs SET nom=?, prenom=?, telephone=? WHERE id=?',
-                     (nom, prenom, f.get('telephone', '').strip(), id))
-        conn.commit(); conn.close()
-        flash('Coach mis à jour.', 'success')
-        return redirect(url_for('coachs_list'))
-    conn.close()
-    return render_template('coach_form.html', action='edit', item=item)
-
-@app.route('/coachs/<int:id>/supprimer', methods=['POST'])
-@login_required
-def coach_delete(id):
-    if not peut_gerer_coachs(): abort(403)
-    conn = get_db()
-    conn.execute('UPDATE participants SET coach_id=NULL WHERE coach_id=?', (id,))
-    conn.execute('DELETE FROM coachs WHERE id=?', (id,))
-    conn.commit(); conn.close()
-    flash('Coach supprimé.', 'success')
-    return redirect(url_for('coachs_list'))
 
 # ── CONTACTS ──────────────────────────────────────────────────────────────────
 @app.route('/contacts')
