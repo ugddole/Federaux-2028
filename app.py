@@ -344,6 +344,7 @@ DEFAULT_DROITS_CONFIG = {
     ('page', 'materiel'): {'organisation', 'communication', 'staff'},
     ('page', 'contacts'): {'organisation', 'communication', 'administration', 'staff'},
     ('page', 'budget'): {'organisation', 'staff'},
+    ('page', 'programme_national'): {'organisation', 'administration'},
     ('forum_cat', 'Bénévoles'): {'organisation', 'communication', 'staff'},
     ('forum_cat', 'Technique & Matériel'): {'organisation', 'communication', 'staff'},
 }
@@ -572,6 +573,7 @@ PAGE_DEFS = {
     'materiel': {'url': 'materiel_list', 'icon': 'bi-box-seam-fill', 'label': 'Matériel'},
     'contacts': {'url': 'contacts_list', 'icon': 'bi-person-lines-fill', 'label': 'Contacts'},
     'budget': {'url': 'budget_list', 'icon': 'bi-cash-coin', 'label': 'Budget'},
+    'programme_national': {'url': 'programme_national', 'icon': 'bi-file-earmark-text-fill', 'label': 'Programme national'},
 }
 # 'administration' et 'droits_recap' restent volontairement hors matrice éditable
 # (accès admin uniquement, en dur) pour qu'un mauvais réglage ne puisse jamais
@@ -2022,6 +2024,15 @@ def programme_import():
         flash(f"Import terminé — {len(data)} créneau(x) ajouté(s).", 'success')
         return redirect(url_for('programme'))
     return render_template('programme_import.html')
+
+# ── PROGRAMME NATIONAL (document partageable) ───────────────────────────────
+@app.route('/programme-national')
+@login_required
+def programme_national():
+    if not est_autorise('page', 'programme_national', current_user):
+        abort(403)
+    public_url = url_for('static', filename='documents/programme_national_dole2028.html', _external=True)
+    return render_template('programme_national.html', public_url=public_url)
 
 # ── FORUM ─────────────────────────────────────────────────────────────────────
 def forum_categories_masquees(user):
