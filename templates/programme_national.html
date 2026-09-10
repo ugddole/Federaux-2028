@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="fscf-card">
+  <h2>📋 Programme de la Manifestation Nationale</h2>
+  <p>
+    <a class="btn-fscf" href="{{ url_for('static', filename='documents/programme_national_dole2028.html') }}" target="_blank">
+      👁️ Voir le programme
+    </a>
+  </p>
+
+  <hr style="margin:20px 0;">
+
+  <h3>✉️ Envoyer ce programme</h3>
+  <form id="sendProgrammeForm" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+    <input type="email" id="sendEmail" required placeholder="email@exemple.fr"
+           style="padding:8px 12px; border-radius:6px; border:1px solid #ccc; flex:1; min-width:220px;">
+    <button type="submit" class="btn-fscf">Envoyer par email</button>
+  </form>
+  <p style="font-size:0.85em; color:#888; margin-top:8px;">
+    Ouvre votre messagerie avec un email pré-rempli contenant le lien du programme.
+  </p>
+</div>
+
+<script>
+document.getElementById('sendProgrammeForm').addEventListener('submit', function (e) {
+  e.preventDefault();
+  const email = document.getElementById('sendEmail').value;
+  const link = "{{ public_url }}";
+  const subject = encodeURIComponent("Programme – Manifestation Nationale FSCF – Dole 2028");
+  const body = encodeURIComponent(
+    "Bonjour,\n\nVoici le lien vers le programme de la Manifestation Nationale FSCF – Dole 2028 :\n" +
+    link +
+    "\n\nCordialement."
+  );
+  window.location.href = "mailto:" + email + "?subject=" + subject + "&body=" + body;
+});
+</script>
+{% endblock %}
