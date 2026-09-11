@@ -18,7 +18,7 @@
           <tr><td class="text-muted py-1">Catégorie</td><td><span class="role-badge role-participant">{{ j.categorie }}</span></td></tr>
           <tr><td class="text-muted py-1">Club / Comité</td><td><strong>{{ j.club }}</strong></td></tr>
           <tr><td class="text-muted py-1">Région</td><td>{{ j.region or '—' }}</td></tr>
-          <tr><td class="text-muted py-1">Email</td><td style="word-break:break-all;">{{ j.email }}</td></tr>
+          <tr><td class="text-muted py-1">Email</td><td style="word-break:break-all;">{% if j.email %}<a href="mailto:{{ j.email }}">{{ j.email }}</a>{% else %}—{% endif %}</td></tr>
           <tr><td class="text-muted py-1">Téléphone</td><td>{{ j.telephone or '—' }}</td></tr>
           <tr><td class="text-muted py-1">Badge</td><td>{% if j.badge_generated %}<span class="badge bg-success">Généré</span>{% else %}<span class="badge bg-secondary">Non généré</span>{% endif %}</td></tr>
           <tr><td class="text-muted py-1">Notes</td><td>{{ j.notes or '—' }}</td></tr>
