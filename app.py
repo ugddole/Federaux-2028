@@ -966,6 +966,51 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+@app.route('/debug-storage-xk92f')
+def debug_storage_xk92f():
+    """Route de diagnostic temporaire — à supprimer une fois le problème de
+    persistance résolu. Ne nécessite pas d'être connecté (utile puisque le
+    problème empêche justement de se connecter)."""
+    info = {
+        'DATABASE_env_var': DATABASE,
+        'database_file_exists': os.path.exists(DATABASE),
+        'database_dir': os.path.dirname(DATABASE) or '.',
+        'database_dir_exists': os.path.exists(os.path.dirname(DATABASE) or '.'),
+    }
+    if info['database_dir_exists']:
+        try:
+            info['database_dir_contents'] = os.listdir(os.path.dirname(DATABASE) or '.')
+        except Exception as e:
+            info['database_dir_contents_error'] = str(e)
+    if info['database_file_exists']:
+        info['database_file_size_bytes'] = os.path.getsize(DATABASE)
+        info['database_file_modified'] = datetime.fromtimestamp(os.path.getmtime(DATABASE)).isoformat()
+        try:
+            conn = get_db()
+            info['users_count'] = conn.execute('SELECT COUNT(*) AS n FROM users').fetchone()['n']
+            rows = conn.execute('SELECT email, password_hash FROM users').fetchall()
+            info['users'] = [
+                {
+                    'email': r['email'],
+                    'hash_algo': r['password_hash'].split(':')[0] if r['password_hash'] else None,
+                    'hash_length': len(r['password_hash']) if r['password_hash'] else 0,
+                }
+                for r in rows
+            ]
+            # Test en direct : est-ce que check_password_hash lève une exception
+            # sur le hash admin, plutôt que de juste retourner False ?
+            admin_row = conn.execute("SELECT password_hash FROM users WHERE email='admin@dole2028.fr'").fetchone()
+            if admin_row:
+                try:
+                    check_password_hash(admin_row['password_hash'], 'un_mot_de_passe_test_forcement_faux')
+                    info['check_password_hash_test'] = 'OK — pas d\'exception levée'
+                except Exception as e:
+                    info['check_password_hash_test_error'] = f'{type(e).__name__}: {e}'
+            conn.close()
+        except Exception as e:
+            info['db_query_error'] = str(e)
+    return jsonify(info)
+
 @app.before_request
 def force_password_change():
     if current_user.is_authenticated and getattr(current_user, 'must_change_password', False):
