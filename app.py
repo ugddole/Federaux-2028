@@ -1011,6 +1011,27 @@ def debug_storage_xk92f():
             info['db_query_error'] = str(e)
     return jsonify(info)
 
+@app.route('/debug-reset-password-xk92f')
+def debug_reset_password_xk92f():
+    """Route de diagnostic temporaire — réinitialise le mot de passe d'un compte
+    donné à une valeur connue, pour débloquer une connexion. À SUPPRIMER une
+    fois le problème résolu (elle ne demande aucune authentification)."""
+    email = request.args.get('email', '').strip().lower()
+    if not email:
+        return jsonify({'error': "Paramètre 'email' manquant. Usage : /debug-reset-password-xk92f?email=xxx@yyy.fr"}), 400
+    conn = get_db()
+    row = conn.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': f'Aucun compte avec cet email : {email}'}), 404
+    new_password = 'Dole2028Reset!'
+    conn.execute('UPDATE users SET password_hash=?, must_change_password=1 WHERE email=?',
+                 (generate_password_hash(new_password), email))
+    conn.commit()
+    conn.close()
+    return jsonify({'email': email, 'new_password': new_password,
+                     'note': 'Connecte-toi avec ce mot de passe, un changement te sera demandé.'})
+
 @app.before_request
 def force_password_change():
     if current_user.is_authenticated and getattr(current_user, 'must_change_password', False):
