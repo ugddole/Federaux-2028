@@ -2,9 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3, qrcode, os, uuid, csv, json, unicodedata, tempfile, re, shutil, threading, time, glob
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import urllib.request, urllib.error
 from datetime import datetime, timedelta
 from io import BytesIO, StringIO
 import base64
@@ -28,14 +26,11 @@ os.makedirs(BACKUPS_DIR, exist_ok=True)
 BACKUP_INTERVAL_SECONDS = 3600  # sauvegarde automatique toutes les heures
 BACKUP_KEEP_COUNT = 72          # conserve les 72 dernières (3 jours à raison d'une/heure)
 
-# ── EMAIL (SMTP) ─────────────────────────────────────────────────────────────
-SMTP_HOST = os.environ.get('SMTP_HOST', '')
-SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
-SMTP_USER = os.environ.get('SMTP_USER', '')
-SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
-SMTP_FROM = os.environ.get('SMTP_FROM', SMTP_USER)
+# ── EMAIL (API Brevo, en HTTPS — le SMTP sortant est bloqué par Railway) ──────
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
+SMTP_FROM = os.environ.get('SMTP_FROM', os.environ.get('SMTP_USER', ''))
 SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME', 'Dole 2028')
-EMAIL_ENABLED = bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
+EMAIL_ENABLED = bool(BREVO_API_KEY and SMTP_FROM)
 BADGES_DIR = 'badges'
 QR_DIR = os.path.join('static', 'qr')
 TMP_DIR  = os.path.join('static', 'tmp')
@@ -85,23 +80,38 @@ def start_backup_thread():
     t.start()
 
 def send_email(to_email, subject, html_body):
-    """Envoie un email via SMTP. Retourne True/False. N'interrompt jamais l'appelant
-    en cas d'échec (compte créé même si l'email ne part pas) — juste loggé en console."""
+    """Envoie un email via l'API HTTPS de Brevo. Retourne True/False. N'interrompt
+    jamais l'appelant en cas d'échec (compte créé même si l'email ne part pas) —
+    juste loggé en console.
+    (Le SMTP sortant classique est bloqué par Railway sur tous les plans, d'où
+    le passage par une API HTTPS.)"""
     if not EMAIL_ENABLED:
-        print(f'[email] SMTP non configuré — email à {to_email} non envoyé ("{subject}").')
+        print(f'[email] Brevo non configuré — email à {to_email} non envoyé ("{subject}").')
         return False
     try:
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = f'{SMTP_FROM_NAME} <{SMTP_FROM}>'
-        msg['To'] = to_email
-        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
-
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_FROM, [to_email], msg.as_string())
+        payload = json.dumps({
+            'sender': {'name': SMTP_FROM_NAME, 'email': SMTP_FROM},
+            'to': [{'email': to_email}],
+            'subject': subject,
+            'htmlContent': html_body,
+        }).encode('utf-8')
+        req = urllib.request.Request(
+            'https://api.brevo.com/v3/smtp/email',
+            data=payload,
+            method='POST',
+            headers={
+                'accept': 'application/json',
+                'api-key': BREVO_API_KEY,
+                'content-type': 'application/json',
+            },
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            resp.read()
         return True
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode('utf-8', errors='replace')
+        print(f'[email] échec d\'envoi à {to_email} : HTTP {e.code} — {detail}')
+        return False
     except Exception as e:
         print(f'[email] échec d\'envoi à {to_email} : {e}')
         return False
