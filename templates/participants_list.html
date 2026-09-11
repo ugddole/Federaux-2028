@@ -50,7 +50,7 @@
           <a href="{{ url_for('participant_detail', id=p.id) }}" class="text-decoration-none fw-bold" style="color:var(--navy);">
             {{ p.nom }} {{ p.prenom }}
           </a><br>
-          <small class="text-muted">{{ p.email }}</small>
+          <small>{% if p.email %}<a href="mailto:{{ p.email }}">{{ p.email }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</small>
         </td>
         <td>{{ p.club }}<br><small class="text-muted">{{ p.region }}</small></td>
         <td><span class="role-badge role-participant">{{ p.categorie }}</span></td>

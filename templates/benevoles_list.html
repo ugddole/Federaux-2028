@@ -45,7 +45,7 @@
       {% for b in items %}
       <tr>
         <td><strong>{{ b.nom }} {{ b.prenom }}</strong></td>
-        <td style="font-size:12px;">{{ b.email }}</td>
+        <td style="font-size:12px;">{% if b.email %}<a href="mailto:{{ b.email }}">{{ b.email }}</a>{% else %}—{% endif %}</td>
         <td>{{ b.telephone or '—' }}</td>
         <td><span class="badge bg-secondary">{{ b.tshirt }}</span></td>
         <td>

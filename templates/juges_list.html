@@ -47,7 +47,7 @@
           <a href="{{ url_for('juge_detail', id=j.id) }}" class="text-decoration-none fw-bold" style="color:var(--navy);">
             {{ j.nom }} {{ j.prenom }}
           </a><br>
-          <small class="text-muted">{{ j.email }}</small>
+          <small>{% if j.email %}<a href="mailto:{{ j.email }}">{{ j.email }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</small>
         </td>
         <td>{{ j.club }}<br><small class="text-muted">{{ j.region }}</small></td>
         <td><span class="role-badge role-participant">{{ j.categorie }}</span></td>
