@@ -355,6 +355,7 @@ DEFAULT_DROITS_CONFIG = {
     ('page', 'contacts'): {'organisation', 'communication', 'administration', 'staff'},
     ('page', 'budget'): {'organisation', 'staff'},
     ('page', 'programme_national'): {'organisation', 'administration'},
+    ('page', 'reunions'): {'organisation', 'administration'},
     ('forum_cat', 'Bénévoles'): {'organisation', 'communication', 'staff'},
     ('forum_cat', 'Technique & Matériel'): {'organisation', 'communication', 'staff'},
 }
@@ -513,6 +514,33 @@ def migrate_db():
             ('Grand Mouvement d\'Ensemble','Stade Robert Bobin','Dimanche 2 Juillet','11:30','12:15',1800,'Toutes catégories',6),
             ('Cérémonie Remise des Prix','Stade Robert Bobin','Dimanche 2 Juillet','12:15','13:15',1800,'',7),
         ])
+
+    try:
+        c.execute('''CREATE TABLE IF NOT EXISTS reunions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titre TEXT NOT NULL DEFAULT 'Réunion d''organisation',
+            date TEXT NOT NULL,
+            heure TEXT DEFAULT '',
+            lieu TEXT DEFAULT '',
+            ordre_du_jour TEXT DEFAULT '',
+            compte_rendu TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            created_by INTEGER,
+            FOREIGN KEY (created_by) REFERENCES users(id)
+        )''')
+        conn.commit()
+    except Exception:
+        pass
+    # seed_droits_config_if_empty() ne tourne que si la table droits_config est
+    # encore vide — sur une base déjà initialisée, on force ici l'entrée par
+    # défaut pour "reunions" (organisation + administration uniquement).
+    try:
+        for d in ('organisation', 'administration'):
+            c.execute("INSERT OR IGNORE INTO droits_config (resource_type,resource_key,droit) VALUES ('page','reunions',?)", (d,))
+        conn.commit()
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -584,6 +612,7 @@ PAGE_DEFS = {
     'contacts': {'url': 'contacts_list', 'icon': 'bi-person-lines-fill', 'label': 'Contacts'},
     'budget': {'url': 'budget_list', 'icon': 'bi-cash-coin', 'label': 'Budget'},
     'programme_national': {'url': 'programme_national', 'icon': 'bi-file-earmark-text-fill', 'label': 'Programme national'},
+    'reunions': {'url': 'reunions_list', 'icon': 'bi-calendar-event', 'label': 'Réunions'},
 }
 # 'administration' et 'droits_recap' restent volontairement hors matrice éditable
 # (accès admin uniquement, en dur) pour qu'un mauvais réglage ne puisse jamais
@@ -646,6 +675,7 @@ def get_menus_visibles(user):
         menus[key]['visible'] = user.is_admin
     return menus
 app.jinja_env.globals['get_menus_visibles'] = get_menus_visibles
+app.jinja_env.globals['est_autorise'] = est_autorise
 
 # ── QR / BADGE ────────────────────────────────────────────────────────────────
 def qr_to_base64(token):
@@ -3755,6 +3785,77 @@ def contacts_import_confirm():
     conn.commit(); conn.close()
     flash(f'✅ Import terminé — {ok} contact(s) créé(s), {skip} ignoré(s).', 'success' if ok else 'warning')
     return redirect(url_for('contacts_list'))
+
+# ── RÉUNIONS D'ORGANISATION ─────────────────────────────────────────────────
+@app.route('/reunions')
+@login_required
+def reunions_list():
+    if not est_autorise('page', 'reunions', current_user): abort(403)
+    conn = get_db()
+    items = conn.execute('''
+        SELECT r.*, u.nom crnom, u.prenom crprenom
+        FROM reunions r LEFT JOIN users u ON r.created_by = u.id
+        ORDER BY r.date, r.heure
+    ''').fetchall()
+    conn.close()
+    return render_template('reunions_list.html', items=items)
+
+@app.route('/reunions/new', methods=['GET', 'POST'])
+@login_required
+def reunion_new():
+    if not est_autorise('page', 'reunions', current_user): abort(403)
+    if request.method == 'POST':
+        f = request.form
+        conn = get_db()
+        conn.execute(
+            'INSERT INTO reunions (titre,date,heure,lieu,ordre_du_jour,compte_rendu,created_by) VALUES (?,?,?,?,?,?,?)',
+            (f.get('titre', '').strip() or "Réunion d'organisation", f['date'], f.get('heure', ''),
+             f.get('lieu', ''), f.get('ordre_du_jour', ''), f.get('compte_rendu', ''), current_user.id))
+        rid = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        conn.commit(); conn.close()
+        flash('Réunion créée.', 'success')
+        return redirect(url_for('reunion_detail', id=rid))
+    return render_template('reunion_form.html', action='new', item=None)
+
+@app.route('/reunions/<int:id>')
+@login_required
+def reunion_detail(id):
+    if not est_autorise('page', 'reunions', current_user): abort(403)
+    conn = get_db()
+    item = conn.execute('SELECT * FROM reunions WHERE id=?', (id,)).fetchone()
+    conn.close()
+    if not item: abort(404)
+    return render_template('reunion_detail.html', item=item)
+
+@app.route('/reunions/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def reunion_edit(id):
+    if not est_autorise('page', 'reunions', current_user): abort(403)
+    conn = get_db()
+    item = conn.execute('SELECT * FROM reunions WHERE id=?', (id,)).fetchone()
+    if not item:
+        conn.close(); abort(404)
+    if request.method == 'POST':
+        f = request.form
+        conn.execute(
+            'UPDATE reunions SET titre=?,date=?,heure=?,lieu=?,ordre_du_jour=?,compte_rendu=? WHERE id=?',
+            (f.get('titre', '').strip() or "Réunion d'organisation", f['date'], f.get('heure', ''),
+             f.get('lieu', ''), f.get('ordre_du_jour', ''), f.get('compte_rendu', ''), id))
+        conn.commit(); conn.close()
+        flash('Réunion mise à jour.', 'success')
+        return redirect(url_for('reunion_detail', id=id))
+    conn.close()
+    return render_template('reunion_form.html', action='edit', item=item)
+
+@app.route('/reunions/<int:id>/delete', methods=['POST'])
+@login_required
+def reunion_delete(id):
+    if not est_autorise('page', 'reunions', current_user): abort(403)
+    conn = get_db()
+    conn.execute('DELETE FROM reunions WHERE id=?', (id,))
+    conn.commit(); conn.close()
+    flash('Réunion supprimée.', 'success')
+    return redirect(url_for('reunions_list'))
 
 # ── RUN ───────────────────────────────────────────────────────────────────────
 init_db()
