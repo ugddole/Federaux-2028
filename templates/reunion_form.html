@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Nouvelle réunion' if action == 'new' else 'Modifier la réunion' }}{% endblock %}
+{% block page_title %}<i class="bi bi-calendar-event me-2"></i>{{ 'Nouvelle réunion' if action == 'new' else 'Modifier la réunion' }}{% endblock %}
+
+{% block content %}
+<div class="fscf-card">
+    <div class="fscf-card-body">
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Titre</label>
+                    <input type="text" name="titre" class="form-control"
+                           value="{{ item.titre if item else \"Réunion d'organisation\" }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Date *</label>
+                    <input type="date" name="date" class="form-control" required
+                           value="{{ item.date if item else '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Heure</label>
+                    <input type="time" name="heure" class="form-control"
+                           value="{{ item.heure if item else '' }}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Lieu</label>
+                    <input type="text" name="lieu" class="form-control"
+                           value="{{ item.lieu if item else '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><i class="bi bi-list-check me-1"></i>Ordre du jour</label>
+                    <textarea name="ordre_du_jour" class="form-control" rows="10"
+                              placeholder="- Point 1&#10;- Point 2&#10;- ...">{{ item.ordre_du_jour if item else '' }}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><i class="bi bi-file-text me-1"></i>Compte rendu</label>
+                    <textarea name="compte_rendu" class="form-control" rows="10"
+                              placeholder="À compléter après la réunion...">{{ item.compte_rendu if item else '' }}</textarea>
+                </div>
+            </div>
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn-fscf">
+                    <i class="bi bi-check-lg me-1"></i>Enregistrer
+                </button>
+                <a href="{{ url_for('reunions_list') }}" class="btn btn-outline-secondary">Annuler</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

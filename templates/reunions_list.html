@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}Réunions d'organisation{% endblock %}
+{% block page_title %}<i class="bi bi-calendar-event me-2"></i>Réunions d'organisation{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('reunion_new') }}" class="btn-fscf">
+    <i class="bi bi-plus-lg me-1"></i>Nouvelle réunion
+</a>
+{% endblock %}
+
+{% block content %}
+{% if items %}
+<div class="row g-3">
+    {% for r in items %}
+    <div class="col-12">
+        <div class="fscf-card">
+            <div class="fscf-card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-calendar3 me-2"></i>{{ r.titre }}
+                    <span class="text-muted" style="font-size:12px;font-weight:normal;">
+                        — {{ r.date }}{% if r.heure %} à {{ r.heure }}{% endif %}{% if r.lieu %} — {{ r.lieu }}{% endif %}
+                    </span>
+                </div>
+                <div>
+                    <a href="{{ url_for('reunion_edit', id=r.id) }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="supprimerReunion({{ r.id }})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="fscf-card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div style="font-size:11px;text-transform:uppercase;color:#888;font-weight:600;">
+                            <i class="bi bi-list-check me-1"></i>Ordre du jour
+                        </div>
+                        <div style="white-space:pre-line;font-size:14px;" class="p-2 bg-light rounded mt-1">
+                            {{ r.ordre_du_jour or '—' }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div style="font-size:11px;text-transform:uppercase;color:#888;font-weight:600;">
+                            <i class="bi bi-file-text me-1"></i>Compte rendu
+                        </div>
+                        <div style="white-space:pre-line;font-size:14px;" class="p-2 bg-light rounded mt-1">
+                            {{ r.compte_rendu or '—' }}
+                        </div>
+                    </div>
+                </div>
+                {% if r.crnom %}
+                <div class="text-muted mt-2" style="font-size:11px;">
+                    Créée par {{ r.crprenom }} {{ r.crnom }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="fscf-card">
+    <div class="fscf-card-body p-4 text-center text-muted">
+        <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
+        Aucune réunion planifiée pour le moment.
+    </div>
+</div>
+{% endif %}
+
+<form id="delete-form" method="POST" style="display:none;"></form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function supprimerReunion(id) {
+    if (confirm('Supprimer cette réunion ?')) {
+        const form = document.getElementById('delete-form');
+        form.action = '/reunions/' + id + '/delete';
+        form.submit();
+    }
+}
+</script>
+{% endblock %}

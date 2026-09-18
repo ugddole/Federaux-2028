@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}{{ item.titre }}{% endblock %}
+{% block page_title %}<i class="bi bi-calendar-event me-2"></i>{{ item.titre }}{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('reunion_edit', id=item.id) }}" class="btn-fscf">
+    <i class="bi bi-pencil me-1"></i>Modifier
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="fscf-card mb-3">
+    <div class="fscf-card-body">
+        <span class="text-muted">
+            {{ item.date }}{% if item.heure %} à {{ item.heure }}{% endif %}{% if item.lieu %} — {{ item.lieu }}{% endif %}
+        </span>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="fscf-card">
+            <div class="fscf-card-header"><i class="bi bi-list-check me-2"></i>Ordre du jour</div>
+            <div class="fscf-card-body" style="white-space:pre-line;">{{ item.ordre_du_jour or 'Non renseigné' }}</div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="fscf-card">
+            <div class="fscf-card-header"><i class="bi bi-file-text me-2"></i>Compte rendu</div>
+            <div class="fscf-card-body" style="white-space:pre-line;">{{ item.compte_rendu or 'Non renseigné' }}</div>
+        </div>
+    </div>
+</div>
+
+<a href="{{ url_for('reunions_list') }}" class="btn btn-outline-secondary mt-3">
+    <i class="bi bi-arrow-left me-1"></i>Retour au planning
+</a>
+{% endblock %}
