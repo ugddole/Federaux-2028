@@ -148,6 +148,11 @@
           <i class="bi bi-person-lines-fill me-2"></i>Nouveau contact
         </a>
         {% endif %}
+        {% if est_autorise('page', 'idees', current_user) %}
+        <a href="{{ url_for('idee_new') }}" class="btn-fscf-outline text-center text-decoration-none py-2" style="display:block;border-color:#e6a100;color:#b37d00;">
+          <i class="bi bi-lightbulb-fill me-2"></i>Proposer une idée
+        </a>
+        {% endif %}
       </div>
     </div>
   </div>
