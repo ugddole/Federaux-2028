@@ -356,6 +356,7 @@ DEFAULT_DROITS_CONFIG = {
     ('page', 'budget'): {'organisation', 'staff'},
     ('page', 'programme_national'): {'organisation', 'administration'},
     ('page', 'reunions'): {'organisation', 'administration'},
+    ('page', 'idees'): {'communication', 'organisation', 'administration'},
     ('forum_cat', 'Bénévoles'): {'organisation', 'communication', 'staff'},
     ('forum_cat', 'Technique & Matériel'): {'organisation', 'communication', 'staff'},
 }
@@ -541,6 +542,34 @@ def migrate_db():
     except Exception:
         pass
 
+    # ── Boîte à idées ──
+    try:
+        c.execute('''CREATE TABLE IF NOT EXISTS idees (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titre TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            categorie TEXT DEFAULT '',
+            statut TEXT DEFAULT 'nouvelle',
+            reponse TEXT DEFAULT '',
+            created_by INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (created_by) REFERENCES users(id)
+        )''')
+        conn.commit()
+    except Exception:
+        pass
+    # Droits par défaut de la Boîte à idées, posés UNE SEULE FOIS : si l'admin
+    # modifie ensuite la ligne dans /admin/droits, ses réglages sont conservés.
+    try:
+        deja = c.execute("SELECT COUNT(*) FROM droits_config WHERE resource_type='page' AND resource_key='idees'").fetchone()[0]
+        if not deja:
+            for d in ('communication', 'organisation', 'administration'):
+                c.execute("INSERT OR IGNORE INTO droits_config (resource_type,resource_key,droit) VALUES ('page','idees',?)", (d,))
+            conn.commit()
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -613,6 +642,7 @@ PAGE_DEFS = {
     'budget': {'url': 'budget_list', 'icon': 'bi-cash-coin', 'label': 'Budget'},
     'programme_national': {'url': 'programme_national', 'icon': 'bi-file-earmark-text-fill', 'label': 'Programme national'},
     'reunions': {'url': 'reunions_list', 'icon': 'bi-calendar-event', 'label': 'Réunions'},
+    'idees': {'url': 'idees_list', 'icon': 'bi-lightbulb-fill', 'label': 'Boîte à idées'},
 }
 # 'administration' et 'droits_recap' restent volontairement hors matrice éditable
 # (accès admin uniquement, en dur) pour qu'un mauvais réglage ne puisse jamais
@@ -3856,6 +3886,91 @@ def reunion_delete(id):
     conn.commit(); conn.close()
     flash('Réunion supprimée.', 'success')
     return redirect(url_for('reunions_list'))
+
+# ── BOÎTE À IDÉES ─────────────────────────────────────────────────────────────
+IDEE_CATEGORIES = ['Organisation', 'Communication', 'Compétition', 'Bénévoles', 'Logistique & Matériel', 'Animations', 'Autre']
+IDEE_STATUTS = {
+    'nouvelle': ('Nouvelle', 'secondary'),
+    'etude':    ("À l'étude", 'warning'),
+    'retenue':  ('Retenue', 'success'),
+    'ecartee':  ('Écartée', 'danger'),
+}
+app.jinja_env.globals['IDEE_STATUTS'] = IDEE_STATUTS
+
+def peut_gerer_idees():
+    """Changer le statut, répondre, supprimer : organisation, administration (et admin)."""
+    return current_user.has_droit('organisation') or current_user.has_droit('administration')
+app.jinja_env.globals['peut_gerer_idees'] = peut_gerer_idees
+
+@app.route('/idees')
+@login_required
+def idees_list():
+    if not est_autorise('page', 'idees', current_user): abort(403)
+    statut = request.args.get('statut', '')
+    conn = get_db()
+    sql = """SELECT i.*, u.nom anom, u.prenom aprenom
+             FROM idees i LEFT JOIN users u ON i.created_by = u.id WHERE 1=1"""
+    params = []
+    if not peut_gerer_idees():
+        sql += ' AND i.created_by = ?'; params.append(current_user.id)
+    if statut in IDEE_STATUTS:
+        sql += ' AND i.statut = ?'; params.append(statut)
+    sql += ' ORDER BY i.created_at DESC'
+    items = conn.execute(sql, params).fetchall()
+    conn.close()
+    return render_template('idees_list.html', items=items, statut=statut, gestion=peut_gerer_idees())
+
+@app.route('/idees/new', methods=['GET', 'POST'])
+@login_required
+def idee_new():
+    if not est_autorise('page', 'idees', current_user): abort(403)
+    if request.method == 'POST':
+        f = request.form
+        titre = f.get('titre', '').strip()
+        if not titre:
+            flash('Merci de donner un titre à ton idée.', 'warning')
+            return render_template('idee_form.html', categories=IDEE_CATEGORIES, form=f)
+        conn = get_db()
+        conn.execute('INSERT INTO idees (titre, description, categorie, created_by) VALUES (?,?,?,?)',
+                     (titre, f.get('description', '').strip(), f.get('categorie', ''), current_user.id))
+        conn.commit(); conn.close()
+        flash('💡 Merci ! Ton idée a bien été envoyée.', 'success')
+        return redirect(url_for('idees_list'))
+    return render_template('idee_form.html', categories=IDEE_CATEGORIES, form={})
+
+@app.route('/idees/<int:id>', methods=['GET', 'POST'])
+@login_required
+def idee_detail(id):
+    if not est_autorise('page', 'idees', current_user): abort(403)
+    conn = get_db()
+    item = conn.execute("""SELECT i.*, u.nom anom, u.prenom aprenom
+                           FROM idees i LEFT JOIN users u ON i.created_by = u.id WHERE i.id=?""", (id,)).fetchone()
+    if not item:
+        conn.close(); abort(404)
+    if not peut_gerer_idees() and item['created_by'] != current_user.id:
+        conn.close(); abort(403)
+    if request.method == 'POST':
+        if not peut_gerer_idees():
+            conn.close(); abort(403)
+        statut = request.form.get('statut', 'nouvelle')
+        if statut not in IDEE_STATUTS: statut = 'nouvelle'
+        conn.execute("UPDATE idees SET statut=?, reponse=?, updated_at=datetime('now') WHERE id=?",
+                     (statut, request.form.get('reponse', '').strip(), id))
+        conn.commit(); conn.close()
+        flash('Idée mise à jour.', 'success')
+        return redirect(url_for('idee_detail', id=id))
+    conn.close()
+    return render_template('idee_detail.html', item=item, gestion=peut_gerer_idees())
+
+@app.route('/idees/<int:id>/delete', methods=['POST'])
+@login_required
+def idee_delete(id):
+    if not est_autorise('page', 'idees', current_user) or not peut_gerer_idees(): abort(403)
+    conn = get_db()
+    conn.execute('DELETE FROM idees WHERE id=?', (id,))
+    conn.commit(); conn.close()
+    flash('Idée supprimée.', 'success')
+    return redirect(url_for('idees_list'))
 
 # ── RUN ───────────────────────────────────────────────────────────────────────
 init_db()
